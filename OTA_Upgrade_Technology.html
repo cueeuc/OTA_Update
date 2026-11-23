@@ -1,0 +1,1945 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>嵌入式 OTA 升级技术学习手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f5f0;
+  --card:#ffffff;
+  --line:#e9e3d6;
+  --line-soft:#f1ede3;
+  --ink:#14171e;
+  --ink-2:#3a4256;
+  --muted:#7c7a72;
+  --accent:#2f6f5e;
+  --accent-soft:rgba(47,111,94,.07);
+  --accent-line:rgba(47,111,94,.26);
+  --warm:#c97b3f;
+  --warm-soft:rgba(201,123,63,.09);
+  --warm-line:rgba(201,123,63,.28);
+  --sans:'Outfit','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Source Han Sans SC','Noto Sans SC',sans-serif;
+  --serif:'DM Serif Display','Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;
+  --mono:'JetBrains Mono','Cascadia Code','Consolas','Courier New',monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:22px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,dl{margin:0}
+a{color:var(--accent)}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+
+/* ---------- layout：左侧目录栏 + 右侧正文 ---------- */
+.layout{display:grid;grid-template-columns:278px minmax(0,1fr);align-items:start}
+.sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;overscroll-behavior:contain;border-right:1px solid var(--line);padding:30px 20px 46px 30px;scrollbar-width:thin}
+.sidebar::-webkit-scrollbar{width:7px}
+.sidebar::-webkit-scrollbar-thumb{background:#e4dfd3;border-radius:4px}
+.sidebar::-webkit-scrollbar-track{background:transparent}
+.side-brand{padding-bottom:18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px}
+.side-brand-txt{flex:1;min-width:0}
+.side-title{font-family:var(--serif);font-weight:400;font-size:20px;line-height:1.38;letter-spacing:-.005em}
+.side-sub{margin-top:8px;font-size:12px;color:var(--muted);letter-spacing:.02em}
+.side-toggle{flex:none;width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink-2);display:grid;place-items:center;cursor:pointer;padding:0;transition:background .16s,color .16s,border-color .16s}
+.side-toggle:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.side-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side-toggle svg{width:16px;height:16px;transition:transform .24s ease}
+.content{max-width:1020px;margin:0 auto;padding:0 30px}
+
+/* ---------- 目录收起状态 ---------- */
+.layout{transition:grid-template-columns .24s ease}
+.layout.collapsed{grid-template-columns:56px minmax(0,1fr)}
+.layout.collapsed .sidebar{padding-left:12px;padding-right:12px}
+.layout.collapsed .side-brand{justify-content:center;padding-bottom:14px}
+.layout.collapsed .side-brand-txt,.layout.collapsed .toc-label,.layout.collapsed .toc-sub,.layout.collapsed .toc-name,.layout.collapsed .side-foot-txt{display:none}
+.layout.collapsed .side-toggle svg{transform:rotate(180deg)}
+.layout.collapsed .toc{padding-top:16px}
+.layout.collapsed .toc-ch{margin-bottom:4px}
+.layout.collapsed .toc-top{justify-content:center;padding:7px 0}
+.layout.collapsed .toc-num{font-size:12px;color:var(--muted)}
+.layout.collapsed .toc-ch.active>.toc-top{background:var(--accent-soft)}
+.layout.collapsed .toc-ch.active>.toc-top .toc-num{color:var(--accent)}
+.layout.collapsed .side-foot{text-align:center}
+
+/* ---------- 目录 ---------- */
+.toc{padding-top:20px}
+.toc-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--muted);margin-bottom:13px}
+.toc-ch{margin-bottom:7px}
+.toc-top{display:flex;align-items:baseline;gap:10px;padding:7px 10px;border-radius:9px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:none;transition:background .16s,color .16s}
+.toc-num{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.toc-top:hover{background:var(--accent-soft);color:var(--accent)}
+.toc-ch.active>.toc-top{background:var(--accent-soft);color:var(--accent)}
+.toc-ch.active>.toc-top .toc-num{color:var(--accent)}
+.toc-sub{list-style:none;margin:3px 0 12px 11px;padding:0 0 0 16px;border-left:1px solid var(--line)}
+.toc-sub li{margin:0}
+.toc-sub a{display:block;padding:4px 9px;border-radius:7px;font-size:12.5px;line-height:1.5;color:var(--muted);text-decoration:none;transition:background .16s,color .16s}
+.toc-sub a:hover{color:var(--accent);background:var(--accent-soft)}
+.toc-sub a.active{color:var(--accent);background:var(--accent-soft);font-weight:500}
+.side-foot{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+.side-foot a{font-size:12px;color:var(--muted);text-decoration:none}
+.side-foot a:hover{color:var(--accent)}
+.side-foot-ico{margin-right:4px}
+.layout.collapsed .side-foot-ico{margin-right:0}
+
+/* ---------- 顶部导航（窄屏时启用） ---------- */
+.topbar{display:none}
+.topbar-inner{display:flex;align-items:center;gap:20px;height:56px;max-width:1120px;margin:0 auto;padding:0 18px}
+.brand{font-size:14.5px;font-weight:600;letter-spacing:.01em;white-space:nowrap}
+.brand em{font-style:normal;color:var(--muted);font-weight:400}
+.nav{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{color:var(--ink-2);text-decoration:none;font-size:13.5px;padding:5px 10px;border-radius:8px;white-space:nowrap;transition:background .18s,color .18s}
+.nav a:hover{background:var(--accent-soft);color:var(--accent)}
+.nav a.active{background:var(--accent-soft);color:var(--accent);font-weight:500}
+
+/* ---------- hero ---------- */
+.hero{padding:52px 0 40px;border-bottom:1px solid var(--line)}
+.hero h1{font-family:var(--serif);font-weight:400;font-size:36px;line-height:1.24;letter-spacing:-.005em;margin-bottom:16px}
+.hero .lead{font-size:16px;color:var(--ink-2);max-width:800px;margin-bottom:24px}
+.hero .lead b{color:var(--ink);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.chip.accent{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-line)}
+
+/* ---------- sections ---------- */
+.sec{padding:46px 0 0}
+.sec-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.sec-num{font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--accent-soft);border-radius:7px;padding:3px 9px;font-weight:500;letter-spacing:.02em}
+h2{font-family:var(--serif);font-weight:400;font-size:26px;line-height:1.3;margin-bottom:8px}
+.sec-sub{color:var(--muted);font-size:14px;margin-bottom:22px;max-width:820px}
+h3{font-size:18px;font-weight:600;margin:36px 0 14px;letter-spacing:.005em}
+h3::before{content:"";display:inline-block;width:14px;height:2px;border-radius:2px;background:var(--accent);margin-right:8px;vertical-align:middle}
+.sec-no{margin-right:.34em}
+.toc-no{margin-right:.32em}
+h4{font-size:15px;font-weight:600;margin-bottom:5px}
+p{margin-bottom:12px;color:var(--ink-2)}
+p strong,.card strong{color:var(--ink);font-weight:600}
+ul,ol{padding-left:20px;color:var(--ink-2)}
+li{margin-bottom:6px}
+li::marker{color:var(--accent)}
+.lead-in{font-size:15px;color:var(--ink-2)}
+
+/* ---------- grids & cards ---------- */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g5{grid-template-columns:repeat(5,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:17px 19px;box-shadow:0 2px 8px rgba(20,23,30,.04)}
+.card p:last-child{margin-bottom:0}
+.card .ico{width:32px;height:32px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin-bottom:10px}
+.card .ico svg{width:17px;height:17px}
+.card.accent{background:var(--accent-soft);border-color:var(--accent-line)}
+.card.accent .ico{background:rgba(47,111,94,.14)}
+.card.warm{background:var(--warm-soft);border-color:var(--warm-line)}
+.card.warm .ico{background:rgba(201,123,63,.15);color:#9c5c28}
+.card .tag{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+
+/* ---------- 是什么/为什么/怎么工作 ---------- */
+.qa{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.qa div{padding:12px 18px;border-bottom:1px dashed var(--line-soft);font-size:14px;color:var(--ink-2)}
+.qa div:last-child{border-bottom:none}
+.qa b{display:inline-block;min-width:56px;color:var(--accent);font-weight:600}
+
+/* ---------- table ---------- */
+.tbl{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tbl th{background:rgba(47,111,94,.07);text-align:left;padding:11px 14px;font-weight:600;font-size:13.5px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--line-soft);color:var(--ink-2);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+.tbl small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.tbl-wrap{overflow-x:auto}
+
+/* ---------- notes ---------- */
+.note{border-radius:12px;padding:13px 17px;font-size:14px;color:var(--ink-2);background:var(--warm-soft);border:1px solid var(--warm-line);margin:14px 0}
+.note b{color:#8a5220}
+.tip{background:var(--accent-soft);border-color:var(--accent-line)}
+.tip b{color:var(--accent)}
+
+/* ---------- figure ---------- */
+.fig{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 18px 14px;margin:20px 0 26px;box-shadow:0 2px 8px rgba(20,23,30,.035)}
+.fig.scroll{overflow-x:auto}
+.fig.scroll svg{min-width:560px}
+.fig svg{width:100%;height:auto;display:block}
+.fig-cap{font-size:13px;color:var(--muted);margin-top:12px;text-align:center;line-height:1.6}
+.fig-cap b{color:var(--ink-2);font-weight:600}
+
+/* ---------- svg shared styles ---------- */
+svg .box{fill:#fff;stroke:var(--line);stroke-width:1.4}
+svg .box-a{fill:rgba(47,111,94,.09);stroke:var(--accent);stroke-width:1.4}
+svg .box-w{fill:rgba(201,123,63,.11);stroke:var(--warm);stroke-width:1.4}
+svg .box-s{fill:#f3f0e9;stroke:var(--line);stroke-width:1.4;stroke-dasharray:4 3}
+svg .t1{font-family:var(--sans);font-size:13.5px;font-weight:600;fill:var(--ink)}
+svg .t2{font-family:var(--sans);font-size:12px;fill:var(--ink-2)}
+svg .t3{font-family:var(--sans);font-size:11.5px;fill:var(--muted)}
+svg .tm{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+svg .ln{stroke:#a9a59a;stroke-width:1.4;fill:none}
+svg .ln-a{stroke:var(--accent);stroke-width:2;fill:none}
+svg .ln-w{stroke:var(--warm);stroke-width:2;fill:none}
+svg .dash{stroke-dasharray:5 4}
+svg .ac{fill:var(--accent)}
+svg .wa{fill:var(--warm)}
+svg .mu{fill:var(--muted)}
+
+/* ---------- misc components ---------- */
+.kv{display:grid;grid-template-columns:132px 1fr;gap:9px 18px;font-size:14px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;color:var(--ink-2)}
+.timeline{list-style:none;padding:0;margin:0;position:relative}
+.timeline::before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:2px;background:var(--accent);opacity:.28}
+.timeline li{position:relative;padding:0 0 24px 30px}
+.timeline li::before{content:"";position:absolute;left:2px;top:6px;width:13px;height:13px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.timeline .when{font-family:var(--mono);font-size:11.5px;color:var(--accent);letter-spacing:.03em}
+.timeline h4{margin:3px 0 4px}
+.timeline p{font-size:14px;margin:0}
+.bench{display:grid;grid-template-columns:150px 1fr 96px;gap:12px;align-items:center;padding:5px 0;font-size:13.5px;color:var(--ink-2)}
+.bench-track{height:13px;background:var(--line-soft);border-radius:6px;overflow:hidden}
+.bench-fill{height:100%;background:var(--accent);border-radius:6px}
+.bench-fill.w{background:var(--warm)}
+.bench-val{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+.steps{list-style:none;padding:0;margin:0;counter-reset:s}
+.steps li{position:relative;padding:0 0 20px 40px;counter-increment:s}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:25px;height:25px;border-radius:8px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;display:grid;place-items:center}
+.steps li::after{content:"";position:absolute;left:12px;top:29px;bottom:0;width:1px;background:var(--line)}
+.steps li:last-child::after{display:none}
+.steps h4{margin-bottom:3px}
+.steps p{margin:0;font-size:14px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.75;color:var(--ink-2);margin:14px 0}
+pre code{background:none;padding:0;color:inherit}
+code{font-family:var(--mono);font-size:.9em;background:var(--line-soft);padding:1.5px 5px;border-radius:5px;color:var(--ink)}
+.pill-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 14px}
+.pill{font-size:12.5px;color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:999px;padding:3px 11px}
+.pill.w{color:#8a5220;background:var(--warm-soft);border-color:var(--warm-line)}
+
+/* ---------- footer ---------- */
+.end{margin-top:56px;padding:30px 0 44px;border-top:1px solid var(--line)}
+.end h4{font-family:var(--serif);font-weight:400;font-size:20px;margin-bottom:8px}
+.end p{font-size:14px;color:var(--muted);max-width:760px}
+.foot-meta{display:flex;flex-wrap:wrap;gap:16px;margin-top:18px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+
+@media (max-width:940px){
+  .layout,.layout.collapsed{grid-template-columns:minmax(0,1fr)}
+  .sidebar{display:none}
+  .topbar{display:block;position:sticky;top:0;z-index:60;background:rgba(247,245,240,.92);backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line)}
+  .content{max-width:1020px;padding:0 22px}
+  html{scroll-padding-top:72px}
+}
+@media (max-width:900px){
+  .g4,.g5{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .hero h1{font-size:29px}
+}
+@media (max-width:640px){
+  .wrap{padding:0 18px}
+  .content{padding:0 16px}
+  .g2,.g3,.g4,.g5{grid-template-columns:1fr}
+  .bench{grid-template-columns:104px 1fr 78px;gap:8px;font-size:12.5px}
+  .kv{grid-template-columns:1fr;gap:2px 0}
+  .kv dt{margin-top:8px}
+  .hero{padding:34px 0 28px}
+  h2{font-size:23px}
+}
+</style>
+</head>
+<body>
+
+<!-- 共享箭头标记 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#a9a59a"/>
+    </marker>
+    <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2f6f5e"/>
+    </marker>
+    <marker id="ar-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c97b3f"/>
+    </marker>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">嵌入式 OTA 升级技术学习手册 <em>· 初学者版</em></div>
+    <nav class="nav" id="nav">
+      <a href="#s1">一 基础认知</a>
+      <a href="#s2">二 核心基础</a>
+      <a href="#s3">三 串口 OTA</a>
+      <a href="#s4">四 无线 OTA</a>
+      <a href="#s5">五 对比选型</a>
+      <a href="#s6">六 安全机制</a>
+      <a href="#s7">七 应用与路线</a>
+      <a href="#mindmap">思维导图</a>
+    </nav>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="side-brand">
+      <div class="side-brand-txt">
+        <div class="side-title">嵌入式 OTA<br>升级技术学习手册</div>
+        <div class="side-sub">初学者版 · 概念 → 原理 → 实现</div>
+      </div>
+      <button class="side-toggle" id="sideToggle" type="button" aria-expanded="true" aria-label="收起目录" title="收起目录">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+
+    <nav class="toc" id="toc">
+      <div class="toc-label">目录 / CONTENTS</div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s1" title="01 基础认知"><span class="toc-num">01</span><span class="toc-name">基础认知</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s1-1"><span class="toc-no">1.1</span> OTA 是什么</a></li>
+          <li><a href="#s1-2"><span class="toc-no">1.2</span> OTA 技术是如何出现的</a></li>
+          <li><a href="#s1-3"><span class="toc-no">1.3</span> OTA 主要解决什么问题</a></li>
+          <li><a href="#s1-4"><span class="toc-no">1.4</span> 为什么嵌入式设备特别需要 OTA</a></li>
+          <li><a href="#s1-5"><span class="toc-no">1.5</span> OTA 的基本工作流程</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s2" title="02 核心基础"><span class="toc-num">02</span><span class="toc-name">核心基础</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s2-1"><span class="toc-no">2.1</span> Bootloader 的作用</a></li>
+          <li><a href="#s2-2"><span class="toc-no">2.2</span> APP 程序与 Bootloader 的关系</a></li>
+          <li><a href="#s2-3"><span class="toc-no">2.3</span> Flash 存储器与程序存储布局</a></li>
+          <li><a href="#s2-4"><span class="toc-no">2.4</span> 固件（Firmware）的概念</a></li>
+          <li><a href="#s2-5"><span class="toc-no">2.5</span> 下载、写入、校验与启动过程</a></li>
+          <li><a href="#s2-6"><span class="toc-no">2.6</span> 涉及的关键技术</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s3" title="03 串口 OTA 升级"><span class="toc-num">03</span><span class="toc-name">串口 OTA 升级</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s3-1"><span class="toc-no">3.1</span> 串口 OTA 的基本概念</a></li>
+          <li><a href="#s3-2"><span class="toc-no">3.2</span> UART 在 OTA 中的作用</a></li>
+          <li><a href="#s3-3"><span class="toc-no">3.3</span> 硬件连接与通信过程</a></li>
+          <li><a href="#s3-4"><span class="toc-no">3.4</span> 完整升级流程</a></li>
+          <li><a href="#s3-5"><span class="toc-no">3.5</span> Bootloader 如何接收并写入</a></li>
+          <li><a href="#s3-6"><span class="toc-no">3.6</span> 优缺点与适用场景</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s4" title="04 无线 OTA 升级"><span class="toc-num">04</span><span class="toc-name">无线 OTA 升级</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s4-1"><span class="toc-no">4.1</span> 无线 OTA 的基本概念</a></li>
+          <li><a href="#s4-2"><span class="toc-no">4.2</span> Wi-Fi、BLE 与蜂窝网络</a></li>
+          <li><a href="#s4-3"><span class="toc-no">4.3</span> 完整升级流程</a></li>
+          <li><a href="#s4-4"><span class="toc-no">4.4</span> 下载、缓存、校验与重启</a></li>
+          <li><a href="#s4-5"><span class="toc-no">4.5</span> 优缺点与适用场景</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s5" title="05 两种 OTA 方式对比"><span class="toc-num">05</span><span class="toc-name">两种 OTA 方式对比</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s5-1"><span class="toc-no">5.1</span> 全面对比</a></li>
+          <li><a href="#s5-2"><span class="toc-no">5.2</span> 速率与成本对比</a></li>
+          <li><a href="#s5-3"><span class="toc-no">5.3</span> 不同设备如何选择</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s6" title="06 关键技术与安全机制"><span class="toc-num">06</span><span class="toc-name">关键技术与安全机制</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s6-1"><span class="toc-no">6.1</span> 完整性校验 CRC / Hash</a></li>
+          <li><a href="#s6-2"><span class="toc-no">6.2</span> 身份验证与数字签名</a></li>
+          <li><a href="#s6-3"><span class="toc-no">6.3</span> Flash 分区与双分区升级</a></li>
+          <li><a href="#s6-4"><span class="toc-no">6.4</span> 升级失败处理</a></li>
+          <li><a href="#s6-5"><span class="toc-no">6.5</span> 断电保护与异常恢复</a></li>
+          <li><a href="#s6-6"><span class="toc-no">6.6</span> 固件回滚 Rollback</a></li>
+          <li><a href="#s6-7"><span class="toc-no">6.7</span> 防止非法固件写入</a></li>
+        </ul>
+      </div>
+
+      <div class="toc-ch">
+        <a class="toc-top" href="#s7" title="07 实际应用与学习路线"><span class="toc-num">07</span><span class="toc-name">实际应用与学习路线</span></a>
+        <ul class="toc-sub">
+          <li><a href="#s7-1"><span class="toc-no">7.1</span> OTA 在真实产品中的应用</a></li>
+          <li><a href="#s7-2"><span class="toc-no">7.2</span> 需要掌握的前置知识</a></li>
+          <li><a href="#s7-3"><span class="toc-no">7.3</span> 从串口到无线的学习顺序</a></li>
+          <li><a href="#s7-4"><span class="toc-no">7.4</span> 初学者入门实验</a></li>
+          <li><a href="#mindmap"><span class="toc-no">7.5</span> 配套思维导图</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="side-foot"><a href="#top" title="回到顶部"><span class="side-foot-ico">↑</span><span class="side-foot-txt">回到顶部</span></a></div>
+  </aside>
+
+  <main class="content" id="top">
+
+  <section class="hero">
+    <h1>嵌入式 OTA 升级技术学习手册</h1>
+    <p class="lead">从"设备怎么把新固件装到自己身上"这一个朴素问题出发，讲清 <b>Bootloader、Flash 分区、固件校验</b> 这三块地基，再分别拆解 <b>串口 OTA</b> 与 <b>无线 OTA</b> 的完整流程，最后落到双分区、断电保护、固件回滚这些真正决定产品可靠性的工程细节上。全书按"是什么 → 为什么 → 怎么工作"的顺序展开，适合第一次接触 OTA 的同学顺序读完。</p>
+    <div class="chips">
+      <span class="chip accent">面向嵌入式初学者</span>
+      <span class="chip">UART 串口 OTA</span>
+      <span class="chip">Wi-Fi / BLE / 4G 无线 OTA</span>
+      <span class="chip">Bootloader 与 Flash 分区</span>
+      <span class="chip">校验 · 签名 · A/B 分区 · 回滚</span>
+      <span class="chip">配套思维导图</span>
+    </div>
+  </section>
+
+  <!-- ============ 一、基础认知 ============ -->
+  <section class="sec" id="s1">
+    <div class="sec-head"><span class="sec-num">Chapter 01</span></div>
+    <h2>基础认知：OTA 到底是什么</h2>
+    <p class="sec-sub">这一章只建立概念，不涉及任何代码或芯片型号。读完后你应该能用自己的话解释"OTA"这个词，并知道它在整个设备生命周期中扮演什么角色。</p>
+
+    <h3 id="s1-1"><span class="sec-no">1.1</span> OTA 是什么</h3>
+    <div class="grid g2">
+      <div class="card accent">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/><path d="m8 7 4-4 4 4"/><path d="M4 13a8 8 0 0 0 16 0"/></svg></div>
+        <h4>OTA（Over-The-Air，空中下载技术）</h4>
+        <p>指设备通过<strong>无线或有线网络链路</strong>，远程接收并安装新固件的能力。它是"固件升级"的一种实现方式，区别在于两个字：<strong>远程</strong>与<strong>空中</strong>——不需要拆机、不需要人工接线、不需要把设备寄回工厂。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="9" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h4>几个容易混淆的词</h4>
+        <p><strong>固件升级</strong>是统称（把新程序写进设备就算升级）；<strong>FOTA</strong>（Firmware Over-The-Air）特指"固件本身的空中升级"，车规领域常用；<strong>ISP</strong>（片内编程）指用专用器具合规烧录，属于本地操作，不算 OTA。</p>
+      </div>
+    </div>
+
+    <div class="qa" style="margin-top:16px">
+      <div><b>是什么</b>OTA 是一套"设备 + 网络 + 固件管理"协同工作的机制，让已经离开生产线的设备依然可以被改写软件。</div>
+      <div><b>为什么</b>设备出厂之后，软件问题（Bug、功能缺失、安全漏洞）依然会暴露，而把它们收回来重新刷机在经济上和物流上都不成立。</div>
+      <div><b>怎么工作</b>设备主动或被动地把"当前版本号"告诉服务器，服务器比对后下发新固件包，设备下载、校验、写入 Flash，然后重启进入新版本。</div>
+    </div>
+
+    <h4 style="margin-top:22px">一次 OTA 升级必须凑齐的三样东西</h4>
+    <div class="grid g3">
+      <div class="card">
+        <span class="tag">ELEMENT 01</span>
+        <h4>固件包（Firmware Package）</h4>
+        <p>升级的"货物"。不只是一个 bin 文件，还包含版本号、目标型号、长度、校验值与签名等元信息，让设备能判断"这包是不是给我的、对不对"。</p>
+      </div>
+      <div class="card">
+        <span class="tag">ELEMENT 02</span>
+        <h4>传输通道</h4>
+        <p>运货的车。本手册分两类：<strong>串口（UART）</strong>——一根线直连，适合产线与实验室；<strong>无线</strong>——Wi-Fi / BLE / 4G，适合大规模在网设备。</p>
+      </div>
+      <div class="card">
+        <span class="tag">ELEMENT 03</span>
+        <h4>升级入口（Bootloader / IAP）</h4>
+        <p>收货并安装的人。设备里的 Bootloader 负责擦除 Flash、接收数据、校验固件、更新启动标志，最后把控制权交给新程序。</p>
+      </div>
+    </div>
+
+    <h3 id="s1-2"><span class="sec-no">1.2</span> OTA 技术是如何出现的</h3>
+    <p>OTA 不是凭空发明出来的，它是"设备数量爆炸"和"网络能力普及"这两件事共同逼出来的产物。下面这条时间线解释了今天的设备为什么几乎都带 OTA。</p>
+    <ul class="timeline">
+      <li>
+        <span class="when">1990s – 2000s</span>
+        <h4>PC / 手机时代：人工刷机是常态</h4>
+        <p>固件升级靠串口线或数据线，由厂商工程师完成。设备量少、人力成本还能承受，所以没有人觉得"远程升级"有必要。</p>
+      </li>
+      <li>
+        <span class="when">2000s 后期</span>
+        <h4>设备批量出货，人工刷机不可持续</h4>
+        <p>MCU 成本下降，智能家居、传感器、工业网关开始一次出货几千台。为了修一个小 Bug 召回上万台设备在经济上直接不成立，"远程改软件"成了刚需。</p>
+      </li>
+      <li>
+        <span class="when">2010s</span>
+        <h4>Wi-Fi 模组便宜 + 物联网云平台成熟</h4>
+        <p>联网成本降到几块钱，云端能管理百万级设备，于是形成"设备—云—固件仓库"的闭环。OTA 从"某个品牌的私有方案"变成"行业标准能力"。</p>
+      </li>
+      <li>
+        <span class="when">2014 前后</span>
+        <h4>SoC 把 Wi-Fi 与 OTA 集成进芯片</h4>
+        <p>ESP8266 / ESP32 这类芯片出厂即自带 OTA API，开发者调几个函数就能升级，OTA 从"系统工程"降级为"一行配置"。</p>
+      </li>
+      <li>
+        <span class="when">2016 至今</span>
+        <h4>方案标准化：BLE DFU、模组 AT 指令、安全启动</h4>
+        <p>Nordic 的 DFU（设备固件升级）方案、4G Cat.1 模组的 AT 指令升级、芯片级安全启动（Secure Boot）陆续成熟，OTA 同时要满足"能升级"和"只允许升级可信固件"。</p>
+      </li>
+    </ul>
+
+    <h3 id="s1-3"><span class="sec-no">1.3</span> OTA 主要解决什么问题</h3>
+    <div class="grid g2">
+      <div class="card">
+        <h4>① 修 Bug 与补功能</h4>
+        <p>现场设备被发现有缺陷时，第一反应不再是"拆下来重刷"，而是推一个 OTA 包过去，把维护周期从"周"压缩到"分钟"。</p>
+      </div>
+      <div class="card">
+        <h4>② 降低维护成本</h4>
+        <p>一台设备装在井盖、路灯杆或客户家里，现场施工一次的成本可能是软件修复成本的几十倍。OTA 把"现场作业"变成"发个包"。</p>
+      </div>
+      <div class="card">
+        <h4>③ 统一版本管理</h4>
+        <p>服务器能统计每台设备的当前版本，判断还有多少设备停留在有漏洞的旧版本上，为安全响应提供依据。</p>
+      </div>
+      <div class="card">
+        <h4>④ 差异化配置与后续扩展</h4>
+        <p>产品出厂后还能调整参数、启用新功能或切换区域策略，不必为每个小差异单独生产一批硬件。</p>
+      </div>
+    </div>
+
+    <h3 id="s1-4"><span class="sec-no">1.4</span> 为什么嵌入式设备特别需要 OTA</h3>
+    <p>PC 的 OTA 失败了大不了重装系统，嵌入式设备升级失败往往意味着<strong>设备变砖</strong>——设备彻底无法使用，除非有人把它拆下来用编程器重刷。所以嵌入式 OTA 不只是"能不能升"，更重要的是"失败了怎么办"。</p>
+    <div class="grid g3" style="margin-top:6px">
+      <div class="card warm">
+        <h4>部署环境恶劣</h4>
+        <p>设备可能在户外、高温、粉尘、弱电网环境。升级必须容忍断网、断电、传输中断，并在设备重启后能自我恢复。</p>
+      </div>
+      <div class="card warm">
+        <h4>资源极度受限</h4>
+        <p>Flash 可能只有几百 KB，RAM 可能只有几十 KB，固件包必须"塞得下"，甚至需要差分升级来压缩体积。</p>
+      </div>
+      <div class="card warm">
+        <h4>生命周期极长</h4>
+        <p>工业设备在役十来年，这期间芯片厂、模组厂、云平台都可能停止服务。OTA 是把"维护能力"留在自己手里的唯一手段。</p>
+      </div>
+    </div>
+
+    <h3 id="s1-5"><span class="sec-no">1.5</span> OTA 的基本工作流程</h3>
+    <p>不管底下是串口还是 Wi-Fi，一次完整升级都可以拆成四个阶段。理解这张闭环图，后面的所有细节都只是它的展开。</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 1000 430" role="img" aria-label="OTA 整体工作原理闭环图">
+        <!-- row 1 -->
+        <rect class="box-a" x="40" y="46" width="200" height="78" rx="12"/>
+        <text class="t1" x="140" y="76" text-anchor="middle">① 设备检查版本</text>
+        <text class="t2" x="140" y="97" text-anchor="middle">APP 读取本地版本号</text>
+        <text class="t3" x="140" y="114" text-anchor="middle">发起 HTTP / MQTT 请求</text>
+
+        <rect class="box-a" x="280" y="46" width="200" height="78" rx="12"/>
+        <text class="t1" x="380" y="76" text-anchor="middle">② 云端比对版本</text>
+        <text class="t2" x="380" y="97" text-anchor="middle">判断是否需要升级</text>
+        <text class="t3" x="380" y="114" text-anchor="middle">匹配目标硬件型号</text>
+
+        <rect class="box-a" x="520" y="46" width="200" height="78" rx="12"/>
+        <text class="t1" x="620" y="76" text-anchor="middle">③ 下发固件包</text>
+        <text class="t2" x="620" y="97" text-anchor="middle">返回下载地址与签名</text>
+        <text class="t3" x="620" y="114" text-anchor="middle">附带版本号与长度</text>
+
+        <rect class="box-a" x="760" y="46" width="200" height="78" rx="12"/>
+        <text class="t1" x="860" y="76" text-anchor="middle">④ 下载到缓存区</text>
+        <text class="t2" x="860" y="97" text-anchor="middle">分块传输、可断点续传</text>
+        <text class="t3" x="860" y="114" text-anchor="middle">写入 Flash 空闲分区</text>
+
+        <path class="ln" d="M240 85 H276" marker-end="url(#ar)"/>
+        <path class="ln" d="M480 85 H516" marker-end="url(#ar)"/>
+        <path class="ln" d="M720 85 H756" marker-end="url(#ar)"/>
+
+        <!-- row 2 -->
+        <rect class="box-w" x="760" y="238" width="200" height="78" rx="12"/>
+        <text class="t1" x="860" y="268" text-anchor="middle">⑤ 校验固件</text>
+        <text class="t2" x="860" y="289" text-anchor="middle">CRC / Hash 完整性校验</text>
+        <text class="t3" x="860" y="306" text-anchor="middle">数字签名验签</text>
+
+        <rect class="box-w" x="520" y="238" width="200" height="78" rx="12"/>
+        <text class="t1" x="620" y="268" text-anchor="middle">⑥ 写入目标分区</text>
+        <text class="t2" x="620" y="289" text-anchor="middle">擦除并烧录固件</text>
+        <text class="t3" x="620" y="306" text-anchor="middle">更新升级标志</text>
+
+        <rect class="box-w" x="280" y="238" width="200" height="78" rx="12"/>
+        <text class="t1" x="380" y="268" text-anchor="middle">⑦ 重启并选新固件</text>
+        <text class="t2" x="380" y="289" text-anchor="middle">Bootloader 校验并跳转</text>
+        <text class="t3" x="380" y="306" text-anchor="middle">旧固件仍保留可回滚</text>
+
+        <rect class="box-w" x="40" y="238" width="200" height="78" rx="12"/>
+        <text class="t1" x="140" y="268" text-anchor="middle">⑧ 新固件自检</text>
+        <text class="t2" x="140" y="289" text-anchor="middle">确认功能正常</text>
+        <text class="t3" x="140" y="306" text-anchor="middle">标记为有效版本</text>
+
+        <path class="ln" d="M860 124 V234" marker-end="url(#ar)"/>
+        <path class="ln" d="M756 277 H724" marker-end="url(#ar)"/>
+        <path class="ln" d="M516 277 H484" marker-end="url(#ar)"/>
+        <path class="ln" d="M276 277 H244" marker-end="url(#ar)"/>
+
+        <!-- loop back -->
+        <path class="ln-a dash" d="M140 316 V372 H860 V320" marker-end="url(#ar-a)"/>
+        <text class="t2 ac" x="500" y="366" text-anchor="middle">① 设备再次检查版本，形成持续闭环（同时上报升级结果）</text>
+
+        <!-- domain chips -->
+        <text class="tm" x="40" y="30">设备端</text>
+        <text class="tm" x="500" y="30" text-anchor="middle">云端 OTA 服务器</text>
+        <text class="tm" x="860" y="30" text-anchor="middle">设备端</text>
+        <text class="tm" x="500" y="410" text-anchor="middle">设备端：校验、写入与启动切换</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 1 · OTA 整体工作原理闭环</b>：上排是版本协商与固件下载（设备与云端协作），下排是设备端的校验、写入与启动切换。任何 OTA 方案——无论串口还是无线——都是这张图的某个变体。</figcaption>
+    </figure>
+
+    <div class="grid g4">
+      <div class="card">
+        <span class="tag">PHASE 1</span>
+        <h4>版本协商</h4>
+        <p>设备上报自身版本与型号，服务器决定"要不要升、升到哪一版"。</p>
+      </div>
+      <div class="card">
+        <span class="tag">PHASE 2</span>
+        <h4>固件传输</h4>
+        <p>把固件包通过串口或无线链路搬到设备本地缓存区，支持分块与断点续传。</p>
+      </div>
+      <div class="card">
+        <span class="tag">PHASE 3</span>
+        <h4>落盘与校验</h4>
+        <p>校验完整性、验签，通过后写入目标分区并设置升级标志。</p>
+      </div>
+      <div class="card">
+        <span class="tag">PHASE 4</span>
+        <h4>切换与确认</h4>
+        <p>重启后由 Bootloader 选择新固件启动，新固件自检成功才算升级完成。</p>
+      </div>
+    </div>
+
+    <div class="note tip" style="margin-top:22px">
+      <b>初学者最容易混淆的一点：</b>下载成功 ≠ 升级成功。只有到第 ④ 阶段"新固件自检通过并被标记为有效"，服务器上这台设备的状态才真正变成"已升级"。中间任何一步失败，设备都必须能安全地回到旧版本继续工作。
+    </div>
+  </section>
+
+  <!-- ============ 二、OTA 核心基础 ============ -->
+  <section class="sec" id="s2">
+    <div class="sec-head"><span class="sec-num">Chapter 02</span></div>
+    <h2>OTA 核心基础：Bootloader、Flash 与固件</h2>
+    <p class="sec-sub">OTA 的所有动作，最终都归结为三件事：<strong>往 Flash 里写数据</strong>、<strong>判断数据对不对</strong>、<strong>决定启动哪一段代码</strong>。本章把这三件事背后的角色和结构讲清楚。</p>
+
+    <h3 id="s2-1"><span class="sec-no">2.1</span> Bootloader 的作用</h3>
+    <p><strong>Bootloader（引导加载程序）</strong>是设备上一段<strong>出厂时烧好、终身不擦除</strong>的小程序。它永远比 APP 先运行，并且拥有整个 Flash 的读写权限。所有"升级请求"最终都要由它来执行。</p>
+    <div class="qa" style="margin-bottom:16px">
+      <div><b>是什么</b>一段独立于业务 APP 的引导代码，通常几 KB 到几十 KB，放在 Flash 的最前面，出厂固化后不再改动。</div>
+      <div><b>为什么</b>APP 是可以被随意覆盖甚至写坏的，没有一个"永远可信"的程序把关，设备就可能再也起不来。</div>
+      <div><b>怎么工作</b>上电后先跑 Bootloader，它读升级标志、校验待升级固件、决定跳转到哪一段 APP，出问题还能负责恢复。</div>
+    </div>
+    <div class="grid g3">
+      <div class="card accent">
+        <h4>① 上电自检与准备</h4>
+        <p>检查 Flash、RAM、电源状态是否正常，初始化最基本的时钟与串口，为可能的升级做准备。</p>
+      </div>
+      <div class="card accent">
+        <h4>② 判断是否要升级</h4>
+        <p>读取参数区里的"升级标志"。有标志就进入升级流程，没有就直接跳转到 APP，几乎不占用开机时间。</p>
+      </div>
+      <div class="card accent">
+        <h4>③ 擦除、写入与搬运</h4>
+        <p>擦除目标分区，把缓存区的新固件搬运到 APP 区，或直接边收边写。这是 Bootloader 掌握 Flash 写权限的原因。</p>
+      </div>
+      <div class="card accent">
+        <h4>④ 校验与启动选择</h4>
+        <p>对固件做完整性校验，确认可用才跳转；校验不过就尝试备用分区或进入恢复模式。</p>
+      </div>
+      <div class="card accent">
+        <h4>⑤ 设置启动标志</h4>
+        <p>标记"下次启动要走新固件"。这一位标志是升级流程中<strong>最后写</strong>的，写它的瞬间就是升级的提交点。</p>
+      </div>
+      <div class="card accent">
+        <h4>⑥ 异常恢复</h4>
+        <p>升级中断、固件启动失败时提供恢复通道（串口恢复、按键进入下载模式、回到旧分区），避免设备变砖。</p>
+      </div>
+    </div>
+
+    <h3 id="s2-2"><span class="sec-no">2.2</span> APP 程序与 Bootloader 的关系</h3>
+    <p>可以把嵌入式设备想象成一家门店：<strong>Bootloader 是永远在岗的门卫与店长</strong>，负责开门、验货、决定今天开哪个门；<strong>APP 是店里的业务</strong>，随时可以被替换，但开门权在店长手里。</p>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>对比项</th><th>Bootloader（引导程序）</th><th>APP（应用程序）</th></tr></thead>
+        <tbody>
+          <tr><td>位置</td><td>Flash 起始区，固定不变</td><td>Flash 中部的 APP 分区</td></tr>
+          <tr><td>谁写入</td><td>出厂烧录，之后永不擦除</td><td>出厂烧录，之后可被 OTA 覆盖</td></tr>
+          <tr><td>运行时机</td><td>每次上电时最先运行，之后退出</td><td>被 Bootloader 跳转后一直运行</td></tr>
+          <tr><td>主要职责</td><td>启动判断、固件校验、擦写 Flash、异常恢复</td><td>业务功能、通信、云端交互</td></tr>
+          <tr><td>资源占用</td><td>极小（通常 &lt; 32KB），必须极度精简</td><td>可用资源多，受限于 Flash 与 RAM 总量</td></tr>
+          <tr><td>出错后果</td><td>写坏则设备无法启动</td><td>写坏可由 Bootloader 重新刷入</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="fig">
+      <svg viewBox="0 0 1000 440" role="img" aria-label="Bootloader、APP 与 Flash 的关系示意图">
+        <!-- Flash container -->
+        <rect class="box" x="40" y="52" width="400" height="340" rx="14"/>
+        <text class="t1" x="60" y="80">Flash 存储器（如 512KB SPI Flash）</text>
+        <text class="t3" x="60" y="98">非易失 · 可擦写 · 按扇区擦除（常见 4KB）</text>
+
+        <rect class="box-a" x="60" y="112" width="360" height="56" rx="8"/>
+        <text class="t2" x="76" y="136">Bootloader 区　启动引导，出厂固化不可擦除</text>
+        <text class="t3" x="76" y="156">容量小、代码精简，只做启动与擦写</text>
+
+        <rect class="box" x="60" y="176" width="360" height="52" rx="8"/>
+        <text class="t2" x="76" y="200">参数区（Config / Boot Flags）</text>
+        <text class="t3" x="76" y="218">存放版本号、升级标志、回滚计数、设备参数</text>
+
+        <rect class="box-w" x="60" y="236" width="360" height="62" rx="8"/>
+        <text class="t2" x="76" y="260">APP 区 / Slot A　　当前运行的业务程序</text>
+        <text class="t3" x="76" y="279">OTA 时可被覆盖（双分区方案则与 B 区互为备份）</text>
+
+        <rect class="box" x="60" y="306" width="360" height="62" rx="8"/>
+        <text class="t2" x="76" y="330">下载缓存区 / Slot B　　接收新固件</text>
+        <text class="t3" x="76" y="349">固件先落到这里，校验通过再决定是否启用</text>
+
+        <!-- CPU chain -->
+        <text class="t1" x="740" y="42" text-anchor="middle">上电后的执行顺序</text>
+
+        <rect class="box-s" x="640" y="60" width="200" height="46" rx="10"/>
+        <text class="t2" x="740" y="88" text-anchor="middle">① 上电 / 复位</text>
+        <path class="ln" d="M740 106 V126" marker-end="url(#ar)"/>
+
+        <rect class="box-s" x="640" y="130" width="200" height="46" rx="10"/>
+        <text class="t2" x="740" y="150" text-anchor="middle">② ROM 一级引导</text>
+        <text class="t3" x="740" y="166" text-anchor="middle">芯片内固化，定位 Bootloader</text>
+        <path class="ln" d="M740 176 V196" marker-end="url(#ar)"/>
+
+        <rect class="box-a" x="640" y="200" width="200" height="58" rx="10"/>
+        <text class="t1" x="740" y="222" text-anchor="middle">③ Bootloader</text>
+        <text class="t3" x="740" y="240" text-anchor="middle">读标志 · 校验 · 选择启动目标</text>
+        <path class="ln" d="M740 258 V278" marker-end="url(#ar)"/>
+
+        <rect class="box-w" x="640" y="282" width="200" height="58" rx="10"/>
+        <text class="t1" x="740" y="304" text-anchor="middle">④ APP 应用程序</text>
+        <text class="t3" x="740" y="322" text-anchor="middle">传感器采集、通信、业务逻辑</text>
+
+        <rect class="box" x="640" y="356" width="200" height="46" rx="10"/>
+        <text class="t2" x="740" y="384" text-anchor="middle">⑤ 用户业务运行</text>
+
+        <!-- 新固件从缓存区进入 Bootloader -->
+        <path class="ln-a" d="M426 338 C 520 338 585 300 634 250" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="452" y="364">升级流程：串口 / 无线链路</text>
+
+        <!-- Bootloader 回写固件到 APP 区 -->
+        <path class="ln-w dash" d="M634 230 C 560 226 500 250 428 264" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="452" y="222">擦除并写入</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 2 · Bootloader、APP 与 Flash 的关系</b>：左半边是存储布局，右半边是执行顺序，中间虚线表示 Bootloader 拥有对 APP 区与缓存区的擦写权。</figcaption>
+    </figure>
+
+    <h3 id="s2-3"><span class="sec-no">2.3</span> Flash 存储器与程序存储布局</h3>
+    <p><strong>Flash</strong> 是一种<strong>非易失性</strong>存储器（断电不丢数据），可反复擦写。嵌入式设备的程序、配置、固件包通常都存在 Flash 里。</p>
+    <div class="grid g3">
+      <div class="card">
+        <h4>擦除与写入的单位不同</h4>
+        <p>Flash 通常<strong>按扇区擦除</strong>（常见 4KB / 64KB），但<strong>按字节或页写入</strong>。擦除前必须先擦除，写入前不必——这是所有分区设计的基础。</p>
+      </div>
+      <div class="card">
+        <h4>有寿命上限</h4>
+        <p>每个扇区可擦写次数有限（常见 10 万次量级）。频繁写日志、频繁升级同一个分区会消耗寿命，所以参数区应做磨损均衡。</p>
+      </div>
+      <div class="card">
+        <h4>擦写会短暂阻塞</h4>
+        <p>擦除一个扇区可能需要几十到几百毫秒，其间 CPU 无法从该 Flash 读代码，这限制了 Bootloader 升级代码不能太大。</p>
+      </div>
+    </div>
+
+    <h4 style="margin-top:22px">典型的 Flash 存储布局（自上而下）</h4>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>分区</th><th>内容</th><th>升级时是否变化</th></tr></thead>
+        <tbody>
+          <tr><td>Bootloader 区</td><td>引导程序、升级协议实现</td><td>不变化（除非做 Bootloader 自身升级）</td></tr>
+          <tr><td>参数区</td><td>设备参数、当前版本号、升级标志、回滚计数</td><td>变化：升级前后更新标志与版本号</td></tr>
+          <tr><td>APP 区（Slot A）</td><td>业务固件</td><td>变化：被新固件覆盖</td></tr>
+          <tr><td>下载区（Slot B / Cache）</td><td>接收中的固件包</td><td>变化：每次升级写入，升级后清理</td></tr>
+          <tr><td>文件系统区</td><td>用户数据、配置、离线缓存、日志</td><td>一般不参与升级，需单独保护</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>参数区为什么单独存在？</b>因为它是 Bootloader 和 APP 之间的"约定纸条"。升级标志、目标版本号、失败重试次数都必须放在 APP 之外，否则升级还没开始 APP 就已经被覆盖了，无处可查。
+    </div>
+
+    <h3 id="s2-4"><span class="sec-no">2.4</span> 固件（Firmware）的概念</h3>
+    <p><strong>固件</strong>是固化在设备存储器里的软件及配套资源的统称：一段可执行程序，加上它需要的字库、图片、参数模板、协议栈配置等。多数 MCU 的 Flash 里，固件 = 程序代码段 + 启动代码 + 数据段。</p>
+    <p>用于 OTA 的<strong>固件包</strong>通常不是裸的 bin 文件，而是一个带"信封"的包。这个信封让设备可以在写入之前就做出判断。</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 1000 260" role="img" aria-label="固件包结构示意图">
+        <rect class="box-a" x="40" y="40" width="240" height="76" rx="10"/>
+        <text class="t1" x="160" y="68" text-anchor="middle">Header 头部</text>
+        <text class="t2" x="160" y="90" text-anchor="middle">magic 型号 版本 长度 CRC</text>
+        <text class="t3" x="160" y="108" text-anchor="middle">回答：这是给我的吗？多长？</text>
+
+        <rect class="box" x="296" y="40" width="420" height="76" rx="10"/>
+        <text class="t1" x="506" y="68" text-anchor="middle">Payload 固件本体</text>
+        <text class="t2" x="506" y="90" text-anchor="middle">可执行代码 + 数据段 + 资源</text>
+        <text class="t3" x="506" y="108" text-anchor="middle">回答：真正要跑的东西</text>
+
+        <rect class="box-w" x="732" y="40" width="228" height="76" rx="10"/>
+        <text class="t1" x="846" y="68" text-anchor="middle">Signature 签名</text>
+        <text class="t2" x="846" y="90" text-anchor="middle">RSA / ECDSA 签名 + Hash</text>
+        <text class="t3" x="846" y="108" text-anchor="middle">回答：谁签的？可信吗？</text>
+
+        <path class="ln" d="M280 78 H292" marker-end="url(#ar)"/>
+        <path class="ln" d="M716 78 H728" marker-end="url(#ar)"/>
+
+        <path class="ln-a dash" d="M160 116 V150" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="160" y="168" text-anchor="middle">Bootloader 先读头部</text>
+        <text class="t3 ac" x="160" y="186" text-anchor="middle">不匹配则直接丢弃</text>
+
+        <path class="ln-w dash" d="M846 116 V150" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="846" y="168" text-anchor="middle">写完后用内置公钥</text>
+        <text class="t3 wa" x="846" y="186" text-anchor="middle">验签，通过才启动</text>
+
+        <rect class="box-s" x="296" y="200" width="420" height="42" rx="10"/>
+        <text class="t3" x="506" y="226" text-anchor="middle">不同厂商的固件包格式各不相同，但"头部 + 本体 + 校验/签名"这三段式思想是通用的</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 3 · 固件包的结构</b>：头部负责"识别"，本体负责"运行"，签名负责"信任"。具体字段名各家不同，但职责划分高度一致。</figcaption>
+    </figure>
+
+    <h3 id="s2-5"><span class="sec-no">2.5</span> 固件下载、写入、校验与启动的基本过程</h3>
+    <p>把上面几块拼起来，一次升级在设备内部实际发生的是这么一件事：</p>
+    <ol class="steps">
+      <li>
+        <h4>下载：先把固件完整搬到本地</h4>
+        <p>固件包经串口或无线链路分块传到设备，暂存在下载区或 RAM 缓冲。<strong>此时 Flash 里的 APP 还没被动过</strong>，设备仍可正常运行旧版本。</p>
+      </li>
+      <li>
+        <h4>校验：确认搬来的东西没坏、没被篡改</h4>
+        <p>分块传输时逐块校验（防传输错误），落盘后整包校验（防存储错误），再验证数字签名（防人为篡改）。任何一层不过关就丢弃固件包，保留旧版本。</p>
+      </li>
+      <li>
+        <h4>写入：把固件落到它该待的分区</h4>
+        <p>擦除目标分区后写入。写入顺序至关重要：<strong>先写固件数据，最后写升级标志</strong>。这样任何时刻断电，重启后 Bootloader 都只会运行那个经过完整校验的旧固件。</p>
+      </li>
+      <li>
+        <h4>启动：重启并交棒给新固件</h4>
+        <p>置位升级标志后复位，Bootloader 读取标志、校验新分区，通过则跳转；新 APP 启动后做一次自检并把该版本标记为"有效"，升级才算真正完成。</p>
+      </li>
+    </ol>
+
+    <div class="note tip">
+      <b>记住这条主线：</b>下载 → 校验 → 写入 → 启动。任何一种 OTA 方案，区别都只在"下载用什么链路""校验做到什么强度""写到哪里"，主线流程本身是通用的。
+    </div>
+
+    <h3 id="s2-6"><span class="sec-no">2.6</span> OTA 升级涉及的关键技术</h3>
+    <p>把整张技术地图先摊开，后面每读一章都能回来对照一次：</p>
+    <div class="grid g4">
+      <div class="card"><h4>Bootloader / IAP</h4><p>升级的执行者。IAP（In-Application Programming，应用程序内编程）指由 APP 自身完成写入，适合没有独立 Bootloader 的场景。</p></div>
+      <div class="card"><h4>Flash 分区管理</h4><p>决定"写到哪里""旧的怎么保留"，是回滚能力的物理基础。</p></div>
+      <div class="card"><h4>完整性校验</h4><p>CRC / Checksum / Hash 三层递进，强度依次提升，代价依次增大。</p></div>
+      <div class="card"><h4>数字签名</h4><p>非对称加密验证固件来源，防止伪造与篡改。</p></div>
+      <div class="card"><h4>差分升级</h4><p>只传输新旧版本的差异数据，节省流量与 Flash 空间，但实现复杂。</p></div>
+      <div class="card"><h4>断点续传</h4><p>记录已传输偏移量，中断后从断点继续，避免重传整个固件。</p></div>
+      <div class="card"><h4>异常恢复与回滚</h4><p>断电保护、看门狗、备用分区启动失败次数计数与回滚。</p></div>
+      <div class="card"><h4>版本管理与灰度</h4><p>云端控制发布节奏：先小批量灰度，确认稳定再全量。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 三、串口 OTA 升级 ============ -->
+  <section class="sec" id="s3">
+    <div class="sec-head"><span class="sec-num">Chapter 03</span></div>
+    <h2>串口 OTA 升级（UART OTA）</h2>
+    <p class="sec-sub">串口 OTA 是最"古老"也最可靠的一种升级方式：一台电脑、一根线、一套握手协议，就把新固件送进设备。它是理解 OTA 原理的最佳起点。</p>
+
+    <h3 id="s3-1"><span class="sec-no">3.1</span> 串口 OTA 的基本概念</h3>
+    <p><strong>串口 OTA</strong>，指 PC 端的上位机工具通过 <strong>UART（通用异步收发传输器）</strong> 与设备内部的 Bootloader 直接对话，把固件包一块块传过去，由 Bootloader 负责写入 Flash。它不需要网络、不需要服务器，也不需要任何中间件。</p>
+    <div class="qa">
+      <div><b>是什么</b>PC 升级工具 + 设备 Bootloader 通过串口点对点完成的一次固件更新，中间没有网络环节。</div>
+      <div><b>为什么</b>很多设备出厂时并没有联网能力，或者现场根本不具备网络条件，但固件仍需可被更新——串口是最低成本、最容易调试的通道。</div>
+      <div><b>怎么工作</b>工具发握手请求，设备进入下载模式，双方约定协议与参数，然后逐块传送并逐块校验，最后设备写入 Flash 并重启。</div>
+    </div>
+    <div class="pill-row">
+      <span class="pill">产线批量烧录</span>
+      <span class="pill">实验室调试</span>
+      <span class="pill">无网设备</span>
+      <span class="pill">现场应急救援</span>
+      <span class="pill w">Bootloader 自举（Bootloader 自身升级）</span>
+    </div>
+
+    <h3 id="s3-2"><span class="sec-no">3.2</span> UART 在 OTA 中的作用</h3>
+    <p><strong>UART</strong> 是一种最简单也最常见的点对点串行通信方式，只需要两根信号线（发送 TX、接收 RX）加一根公共地线（GND），没有时钟线，双方靠约定好的<strong>波特率</strong>来同步每一位数据。</p>
+    <div class="kv" style="max-width:760px">
+      <dt>波特率</dt><dd>每秒传输的符号数，常见 115200 / 460800 / 921600 / 2000000。收发双方必须一致，否则收到的是乱码。</dd>
+      <dt>数据格式</dt><dd>常见 8N1，表示 1 个起始位、8 位数据、1 个校验位、1 个停止位，即每字节实际占 10 bit。</dd>
+      <dt>流控</dt><dd>RTS/CTS 硬件流控，或用 XON/XOFF 软件流控；简单方案常直接用 ACK/NAK 应答代替。</dd>
+      <dt>双工能力</dt><dd>UART 是全双工的，同一根线上既能发也能收，但升级过程中通常采用"一问一答"的方式避免冲突。</dd>
+    </div>
+
+    <h4 style="margin-top:20px">波特率直接决定升级速度</h4>
+    <p>因为每个字节要占 10 bit，理论最高速率 = 波特率 ÷ 10。实际传输中还要算上协议头、应答与等待，通常只能达到理论值的 70%~85%。</p>
+    <div style="margin:10px 0 4px">
+      <div class="bench"><span class="bench-label">115200 8N1</span><div class="bench-track"><div class="bench-fill" style="width:6%"></div></div><span class="bench-val">≈11.5 KB/s</span></div>
+      <div class="bench"><span class="bench-label">460800 8N1</span><div class="bench-track"><div class="bench-fill" style="width:23%"></div></div><span class="bench-val">≈46 KB/s</span></div>
+      <div class="bench"><span class="bench-label">921600 8N1</span><div class="bench-track"><div class="bench-fill" style="width:46%"></div></div><span class="bench-val">≈92 KB/s</span></div>
+      <div class="bench"><span class="bench-label">2000000 8N1</span><div class="bench-track"><div class="bench-fill" style="width:100%"></div></div><span class="bench-val">≈200 KB/s</span></div>
+    </div>
+    <p class="fig-cap" style="text-align:left;margin-top:6px">图示为<strong>理论上限</strong>；一个 500KB 的固件在 115200 下约需 45 秒，在 921600 下约需 6 秒。这也是产线为什么更愿意用高速波特率。</p>
+
+    <div class="note">
+      <b>为什么更高波特率不是越大越好？</b>波特率越高，信号边沿越密，对线缆质量、接地和时钟精度要求越高。线长、干扰大时会出现随机乱码或丢字节——表现为"偶尔升级失败"，极难排查。实验室短距离可用 921600，现场长线建议保守选择 115200。
+    </div>
+
+    <h3 id="s3-3"><span class="sec-no">3.3</span> 硬件连接与通信过程</h3>
+    <p>PC 早已不再自带串口，所以需要一块 <strong>USB 转串口芯片</strong>（CH340、CP2102、FT232 等）来完成 USB 与 UART 的电平转换。</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 900 230" role="img" aria-label="串口 OTA 硬件连接示意图">
+        <rect class="box" x="40" y="62" width="200" height="92" rx="12"/>
+        <text class="t1" x="140" y="94" text-anchor="middle">PC / 笔记本</text>
+        <text class="t2" x="140" y="116" text-anchor="middle">串口升级工具</text>
+        <text class="t3" x="140" y="136" text-anchor="middle">Xmodem / Ymodem 客户端</text>
+
+        <rect class="box-a" x="350" y="62" width="200" height="92" rx="12"/>
+        <text class="t1" x="450" y="94" text-anchor="middle">USB 转串口芯片</text>
+        <text class="t2" x="450" y="116" text-anchor="middle">CH340 / CP2102 / FT232</text>
+        <text class="t3" x="450" y="136" text-anchor="middle">USB ↔ UART 电平与协议转换</text>
+
+        <rect class="box-w" x="640" y="48" width="220" height="120" rx="12"/>
+        <text class="t1" x="750" y="80" text-anchor="middle">目标设备</text>
+        <text class="t2" x="750" y="104" text-anchor="middle">UART: TX / RX / GND</text>
+        <text class="t3" x="750" y="126" text-anchor="middle">Bootloader 常驻，等待升级指令</text>
+        <text class="t3" x="750" y="146" text-anchor="middle">需进入下载模式（按键 / 引脚拉低）</text>
+
+        <path class="ln-a" d="M240 108 H344" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="292" y="98" text-anchor="middle">USB</text>
+
+        <path class="ln-a" d="M550 108 H634" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="592" y="98" text-anchor="middle">UART</text>
+
+        <text class="t2" x="592" y="140" text-anchor="middle">TX ↔ RX 交叉</text>
+        <text class="t3" x="592" y="158" text-anchor="middle">GND 必须共地</text>
+
+        <path class="ln-w dash" d="M140 154 V196 H750 V172" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="300" y="212">上位机按协议发送升级命令与固件块，设备应答 ACK / NAK</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 4 · 串口 OTA 硬件连接</b>：接线只需 TX、RX、GND 三根线。注意 TX 与 RX 要交叉连接（上位机 TX 接设备 RX），并务必共地。</figcaption>
+    </figure>
+
+    <h4>常见的两类握手方式</h4>
+    <div class="grid g2">
+      <div class="card">
+        <h4>① 通用文件传输协议</h4>
+        <p>直接使用 <strong>Xmodem</strong> / <strong>Ymodem</strong> 这类现成协议：上位机发文件，接收方逐块回 ACK（好）或 NAK（重发），传输完再回一次结束符。<strong>优点</strong>是工具现成、协议成熟；<strong>缺点</strong>是不方便做签名验证与断点续传。</p>
+      </div>
+      <div class="card">
+        <h4>② 自定义帧协议</h4>
+        <p>厂家自己定义帧头、命令字、序号、长度、CRC 等字段。<strong>优点</strong>可以携带型号、版本、签名等完整信息，便于做安全和断点续传；<strong>缺点</strong>需要自己写上位机工具。</p>
+      </div>
+    </div>
+
+    <h3 id="s3-4"><span class="sec-no">3.4</span> 串口 OTA 的完整升级流程</h3>
+    <p>下图是串口升级的典型流程。串口与无线的区别只在于"第 ④ 步怎么把数据搬过来"，之后的校验、写入、启动逻辑几乎是共通的。</p>
+
+    <figure class="fig scroll">
+      <svg viewBox="0 0 560 790" role="img" aria-label="串口 OTA 升级流程图">
+        <!-- N1 -->
+        <rect class="box-a" x="110" y="10" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="32" text-anchor="middle">① 上位机与设备握手</text>
+        <text class="t3" x="230" y="50" text-anchor="middle">发送升级请求，等待应答</text>
+        <path class="ln" d="M230 62 V78" marker-end="url(#ar)"/>
+
+        <!-- D1 -->
+        <polygon class="box-w" points="230,80 330,118 230,156 130,118"/>
+        <text class="t2" x="230" y="123" text-anchor="middle">② 收到升级请求？</text>
+        <path class="ln-w" d="M330 118 H386" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="358" y="106" text-anchor="middle">否</text>
+        <rect class="box-s" x="390" y="92" width="160" height="52" rx="10"/>
+        <text class="t2" x="470" y="112" text-anchor="middle">跳转 APP</text>
+        <text class="t2" x="470" y="130" text-anchor="middle">正常运行</text>
+
+        <path class="ln" d="M230 156 V188" marker-end="url(#ar)"/>
+
+        <!-- N3 -->
+        <rect class="box" x="110" y="190" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="212" text-anchor="middle">③ 擦除 Flash 目标区域</text>
+        <text class="t3" x="230" y="230" text-anchor="middle">空闲分区或 APP 区</text>
+        <path class="ln" d="M230 242 V268" marker-end="url(#ar)"/>
+
+        <!-- N4 -->
+        <rect class="box-a" x="110" y="270" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="292" text-anchor="middle">④ 分块接收固件数据</text>
+        <text class="t3" x="230" y="310" text-anchor="middle">Xmodem 128B / Ymodem 1KB</text>
+        <path class="ln" d="M230 322 V338" marker-end="url(#ar)"/>
+
+        <!-- D2 -->
+        <polygon class="box-w" points="230,340 330,378 230,416 130,378"/>
+        <text class="t2" x="230" y="383" text-anchor="middle">⑤ 块校验通过？</text>
+        <path class="ln-w" d="M330 378 H386" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="358" y="366" text-anchor="middle">否</text>
+        <rect class="box-s" x="390" y="352" width="160" height="52" rx="10"/>
+        <text class="t2" x="470" y="372" text-anchor="middle">请求重传</text>
+        <text class="t2" x="470" y="390" text-anchor="middle">该数据块</text>
+        <path class="ln-w dash" d="M470 404 C 530 404 530 296 352 296" marker-end="url(#ar-w)"/>
+
+        <path class="ln" d="M230 416 V448" marker-end="url(#ar)"/>
+
+        <!-- N6 -->
+        <rect class="box-a" x="110" y="450" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="472" text-anchor="middle">⑥ 整包 CRC32 校验</text>
+        <text class="t3" x="230" y="490" text-anchor="middle">确认整体完整</text>
+        <path class="ln-w dash" d="M350 476 H386" marker-end="url(#ar-w)"/>
+        <rect class="box-s" x="390" y="450" width="160" height="52" rx="10"/>
+        <text class="t2" x="470" y="470" text-anchor="middle">校验失败则丢弃</text>
+        <text class="t2" x="470" y="488" text-anchor="middle">保留旧固件</text>
+
+        <path class="ln" d="M230 502 V538" marker-end="url(#ar)"/>
+
+        <!-- N7 -->
+        <rect class="box-w" x="110" y="540" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="562" text-anchor="middle">⑦ 写入 Flash</text>
+        <text class="t3" x="230" y="580" text-anchor="middle">备份区 → 确认后 → APP 区</text>
+        <path class="ln" d="M230 592 V618" marker-end="url(#ar)"/>
+
+        <!-- N8 -->
+        <rect class="box-w" x="110" y="620" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="642" text-anchor="middle">⑧ 置升级标志 → 复位</text>
+        <text class="t3" x="230" y="660" text-anchor="middle">最后一步才写标志</text>
+        <path class="ln" d="M230 672 V698" marker-end="url(#ar)"/>
+
+        <!-- N9 -->
+        <rect class="box-a" x="110" y="700" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="722" text-anchor="middle">⑨ 校验新固件并启动</text>
+        <text class="t3" x="230" y="740" text-anchor="middle">Bootloader 跳转新 APP</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 5 · 串口 OTA 升级流程图</b>：注意两条"否"分支——不请求升级就退出，校验失败就要求重传。写升级标志永远排在最后。</figcaption>
+    </figure>
+
+    <h3 id="s3-5"><span class="sec-no">3.5</span> Bootloader 如何接收并写入新固件</h3>
+    <p>Bootloader 内部通常是一个明确的状态机，每个状态只做一件事，收到超时或错误就回到空闲状态等待下一条指令：</p>
+    <div class="grid g3">
+      <div class="card"><span class="tag">STATE</span><h4>IDLE 空闲</h4><p>等待上位机的握手或升级请求，带超时判断，避免设备被"卡"在升级界面。</p></div>
+      <div class="card"><span class="tag">STATE</span><h4>ERASE 擦除</h4><p>擦除目标分区。擦除耗时较长，因此应先擦再收，别让上位机白等。</p></div>
+      <div class="card"><span class="tag">STATE</span><h4>RECEIVE 接收</h4><p>逐块收、逐块校验，出错就请求重传，累计写入偏移量。</p></div>
+      <div class="card"><span class="tag">STATE</span><h4>VERIFY 校验</h4><p>对已收到的完整固件做整包 CRC 校验，必要时验签。</p></div>
+      <div class="card"><span class="tag">STATE</span><h4>WRITE 写入</h4><p>把缓存区的固件搬运到 APP 区，或在接收时直接写入目标分区。</p></div>
+      <div class="card"><span class="tag">STATE</span><h4>DONE / ERROR</h4><p>成功则置升级标志并复位；失败则记录错误码、保留旧固件、回到 IDLE。</p></div>
+    </div>
+
+    <h4 style="margin-top:22px">两种写入策略的取舍</h4>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>策略</th><th>做法</th><th>优点</th><th>风险</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>直接写 APP 区</td>
+            <td>边收边写，目标就是正在运行的分区</td>
+            <td>不需要额外的下载区，省 Flash，代码简单</td>
+            <td>传输中断 = APP 区半新半旧，设备直接变砖</td>
+          </tr>
+          <tr>
+            <td>先写下载区再搬运</td>
+            <td>先完整收进空闲分区并校验，通过后再擦除并搬运</td>
+            <td>传输中断不伤旧固件，可靠性高，可天然支持回滚</td>
+            <td>需要约一份固件大小的额外 Flash 空间</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 style="margin-top:22px">Bootloader 侧伪代码</h4>
+    <pre><code>/* Bootloader 侧的接收与写入逻辑（示意） */
+while (1) {
+    /* 1. 等待升级请求，无请求则正常启动 APP */
+    if (ota_wait_request(3000) != OTA_OK) {
+        jump_to_app();
+    }
+
+    /* 2. 先擦除空闲分区与参数区 */
+    flash_erase(SLOT_B_ADDR, SLOT_B_SIZE);
+    flash_erase(PARAM_ADDR,    PARAM_SIZE);
+
+    /* 3. 逐块接收并写入下载区 */
+    uint32_t offset = 0;
+    while (ota_recv_block(&blk) == OTA_OK) {
+        if (crc16(blk.buf, blk.len) != blk.crc) {
+            ota_send_nak();                 /* 本块损坏，要求上位机重发 */
+            continue;
+        }
+        flash_write(SLOT_B_ADDR + offset, blk.buf, blk.len);
+        offset += blk.len;
+        ota_send_ack();
+    }
+
+    /* 4. 整包校验 + 验签 */
+    if (crc32(SLOT_B_ADDR, offset) != pkg.crc32) {
+        ota_report_error(OTA_ERR_CRC);     /* 保留旧固件，不写标志 */
+    } else if (!signature_verify(pkg)) {
+        ota_report_error(OTA_ERR_SIGN);    /* 固件不可信，拒绝 */
+    } else {
+        flash_write(SLOT_B_ADDR + offset, pkg.signature, sizeof(pkg.signature));
+        param_set_boot_flag(SLOT_B);       /* 提交点：标志最后写 */
+        system_reset();
+    }
+}</code></pre>
+    <div class="note">
+      <b>一个容易被忽略的工程细节：</b>正在擦写的 Flash 扇区，其内容在擦除期间无法被读取执行。因此 Bootloader 的升级代码要么运行在 RAM 中，要么必须放在<strong>不会被擦除的另一个扇区</strong>里。这也是 Bootloader 代码量要严格控制的原因之一。
+    </div>
+
+    <h3 id="s3-6"><span class="sec-no">3.6</span> 串口 OTA 的优缺点与适用场景</h3>
+    <div class="grid g2">
+      <div class="card accent">
+        <h4>优点</h4>
+        <ul style="margin:0">
+          <li>不需要网络，产线、实验室、野外都能用</li>
+          <li>带宽稳定，速率可预期，排障时能实时看到每一帧</li>
+          <li>实现简单、工具成熟，学习成本最低</li>
+          <li>现场设备失联时，是最后的"救命通道"</li>
+        </ul>
+      </div>
+      <div class="card warm">
+        <h4>缺点</h4>
+        <ul style="margin:0">
+          <li>必须物理接触设备，无法远程批量升级</li>
+          <li>人工与工时成本随设备数量线性增长</li>
+          <li>USB 转串口驱动、端口占用、波特率匹配等环境问题多</li>
+          <li>串口速率远低于无线，大固件耗时长</li>
+        </ul>
+      </div>
+    </div>
+    <h4 style="margin-top:20px">典型适用场景</h4>
+    <div class="grid g4">
+      <div class="card"><h4>产线烧录</h4><p>批量生产时把固件一次性写入每台设备。</p></div>
+      <div class="card"><h4>研发调试</h4><p>固件迭代频繁，串口能连着看日志、能反复重刷。</p></div>
+      <div class="card"><h4>无网设备</h4><p>不联网的采集器、网关、控制器，升级靠现场工程师。</p></div>
+      <div class="card"><h4>应急恢复</h4><p>无线升级失败后，用串口把设备救回来。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 四、无线 OTA 升级 ============ -->
+  <section class="sec" id="s4">
+    <div class="sec-head"><span class="sec-num">Chapter 04</span></div>
+    <h2>无线 OTA 升级（Wireless OTA）</h2>
+    <p class="sec-sub">无线 OTA 是"规模化物联网"真正的玩法：设备自己上网取包，人不用靠近设备。它与串口 OTA 的差别，在流程图上看只是第 ③ 步的画法变了。</p>
+
+    <h3 id="s4-1"><span class="sec-no">4.1</span> 无线 OTA 的基本概念</h3>
+    <p><strong>无线 OTA</strong>，指设备通过 Wi-Fi、蓝牙（BLE）、蜂窝网络（4G/5G）等无线链路，从服务器下载并安装新固件。设备与服务器之间通常还存在一个<strong>OTA 云平台</strong>，负责版本管理、固件分发与设备状态统计。</p>
+    <div class="qa">
+      <div><b>是什么</b>设备自主联网、远程升级固件的机制，规模化运维的核心手段。</div>
+      <div><b>为什么</b>成千上万台设备分布在城市各处，人工上门一次的成本，往往比重新生产设备还高。</div>
+      <div><b>怎么工作</b>设备查询版本 → 服务器下发固件地址与签名 → 设备下载到缓存 → 校验验签 → 写入 Flash → 重启切换。</div>
+    </div>
+
+    <h3 id="s4-2"><span class="sec-no">4.2</span> Wi-Fi、BLE 与蜂窝网络在 OTA 中的应用</h3>
+    <p>三种主流无线通道的差别，本质上是<strong>速率、功耗、连接成本、覆盖范围</strong>四者之间的取舍。</p>
+    <div class="grid g3">
+      <div class="card accent">
+        <h4>Wi-Fi OTA</h4>
+        <p>设备连上路由器后，通过 HTTP/HTTPS 或 MQTT 从服务器下载固件。<strong>速率最高</strong>（典型几十 KB/s 到百 KB/s 以上），适合有稳定网络环境、固件体积较大的设备。常与云平台联动实现"App 点一下就升级"。</p>
+      </div>
+      <div class="card accent">
+        <h4>BLE OTA</h4>
+        <p>通过低功耗蓝牙传输固件，常见于 Nordic 的 DFU（Device Firmware Update）方案。<strong>低功耗</strong>是其核心优势，适合电池供电的穿戴与传感器；但速率低、协议对包体有专门限制，通常还需要手机 App 参与确认。</p>
+      </div>
+      <div class="card accent">
+        <h4>蜂窝（4G/5G）OTA</h4>
+        <p>通过 4G Cat.1/NB-IoT 模组，用 AT 指令触发模组下载并写入外部 Flash，再由 MCU 复位加载。<strong>覆盖最广、不依赖 Wi-Fi</strong>，适合户外与工业场景，代价是流量成本与较慢的速率。</p>
+      </div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>对比项</th><th>Wi-Fi</th><th>BLE</th><th>蜂窝（4G）</th></tr></thead>
+        <tbody>
+          <tr><td>典型速率量级</td><td>数十 ~ 数百 KB/s</td><td>约 5 ~ 20 KB/s</td><td>约 10 ~ 100 KB/s</td></tr>
+          <tr><td>功耗</td><td>较高，连接期间明显增加</td><td>低，可间歇广播</td><td>中高，模组功耗可观</td></tr>
+          <tr><td>是否需要路由器</td><td>需要</td><td>不需要，手机即可</td><td>不需要运营商基站</td></tr>
+          <tr><td>固件体积限制</td><td>受 RAM 与 Flash 容量限制</td><td>协议栈常有包体上限要求</td><td>受外部 Flash 大小限制</td></tr>
+          <tr><td>典型设备</td><td>智能家居、摄像头、网关</td><td>手环、耳机、穿戴、传感器</td><td>电表、井盖、共享充电</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>BLE OTA 常见的两个"坑"：</b>一是<strong>包体上限</strong>——部分 BLE DFU 协议对单包或整体固件大小有硬性规定，超出需要分包或改用其他通道；二是<strong>安全确认</strong>——设备通过 BLE 升级时用户无法直接看到屏幕，因此常要求"升级完成后按键确认"或"恢复出厂设置确认"，超时未确认就回滚旧固件。
+    </div>
+
+    <h3 id="s4-3"><span class="sec-no">4.3</span> 无线 OTA 的完整升级流程</h3>
+    <figure class="fig scroll">
+      <svg viewBox="0 0 560 700" role="img" aria-label="无线 OTA 升级流程图">
+        <rect class="box-a" x="110" y="10" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="32" text-anchor="middle">① APP 联网查询版本</text>
+        <text class="t3" x="230" y="50" text-anchor="middle">HTTP / MQTT 携带型号与版本</text>
+        <path class="ln" d="M230 62 V78" marker-end="url(#ar)"/>
+
+        <polygon class="box-w" points="230,80 330,118 230,156 130,118"/>
+        <text class="t2" x="230" y="123" text-anchor="middle">② 云端有新版本？</text>
+        <path class="ln-w" d="M330 118 H386" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="358" y="106" text-anchor="middle">否</text>
+        <rect class="box-s" x="390" y="92" width="160" height="52" rx="10"/>
+        <text class="t2" x="470" y="112" text-anchor="middle">保持当前版本</text>
+        <text class="t2" x="470" y="130" text-anchor="middle">继续运行</text>
+
+        <path class="ln" d="M230 156 V188" marker-end="url(#ar)"/>
+
+        <rect class="box-a" x="110" y="190" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="212" text-anchor="middle">③ 下载固件到缓存区</text>
+        <text class="t3" x="230" y="230" text-anchor="middle">分块传输 + 断点续传</text>
+        <path class="ln" d="M230 242 V268" marker-end="url(#ar)"/>
+
+        <polygon class="box-w" points="230,270 330,308 230,346 130,308"/>
+        <text class="t2" x="230" y="313" text-anchor="middle">④ 校验与验签通过？</text>
+        <path class="ln-w" d="M330 308 H386" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="358" y="296" text-anchor="middle">否</text>
+        <rect class="box-s" x="390" y="282" width="160" height="52" rx="10"/>
+        <text class="t2" x="470" y="302" text-anchor="middle">丢弃固件包</text>
+        <text class="t2" x="470" y="320" text-anchor="middle">保留旧版本</text>
+
+        <path class="ln" d="M230 346 V378" marker-end="url(#ar)"/>
+
+        <rect class="box-w" x="110" y="380" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="402" text-anchor="middle">⑤ 写入备用分区 Slot B</text>
+        <text class="t3" x="230" y="420" text-anchor="middle">不覆盖正在运行的固件</text>
+        <path class="ln" d="M230 432 V458" marker-end="url(#ar)"/>
+
+        <rect class="box-w" x="110" y="460" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="482" text-anchor="middle">⑥ 置升级标志 → 重启</text>
+        <text class="t3" x="230" y="500" text-anchor="middle">Bootloader 接管启动流程</text>
+        <path class="ln" d="M230 512 V538" marker-end="url(#ar)"/>
+
+        <rect class="box-a" x="110" y="540" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="562" text-anchor="middle">⑦ 校验并启动新固件</text>
+        <text class="t3" x="230" y="580" text-anchor="middle">失败则回退到旧分区</text>
+        <path class="ln" d="M230 592 V618" marker-end="url(#ar)"/>
+
+        <rect class="box-a" x="110" y="620" width="240" height="52" rx="10"/>
+        <text class="t1" x="230" y="642" text-anchor="middle">⑧ 自检通过 → 标记 valid</text>
+        <text class="t3" x="230" y="660" text-anchor="middle">超时未确认则触发回滚</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 6 · 无线 OTA 升级流程图</b>：与串口流程相比，差别集中在第 ①～③ 步的"联网协商与下载"，之后的落盘、校验、切换逻辑基本一致。</figcaption>
+    </figure>
+
+    <h3 id="s4-4"><span class="sec-no">4.4</span> 固件下载、缓存、校验、写入与重启</h3>
+    <p>无线升级最关键的技术点是<strong>缓存</strong>——固件必须先落到某个可靠的地方，写入目标分区前不能直接覆盖运行中的程序。</p>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>缓存位置</th><th>做法</th><th>适用情况</th></tr></thead>
+        <tbody>
+          <tr><td>外部 Flash 空闲区</td><td>用独立 Flash 存整包固件，写完再搬运</td><td>最常用，支持大固件，可实现 A/B 双分区</td></tr>
+          <tr><td>内部 Flash 空闲分区</td><td>片内 Flash 划出一段空间专门存下载包</td><td>没有外部 Flash 时使用，但占用宝贵的片内空间</td></tr>
+          <tr><td>RAM 缓冲</td><td>先在 RAM 里攒齐，攒不满就升级不了</td><td>仅适合很小的固件或增量补丁</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4 style="margin-top:20px">断点续传是怎么做的</h4>
+    <p>无线网络随时可能中断，如果每断一次都要从头传一遍固件，体验和成功率都会很差。做法很朴素：</p>
+    <ol class="steps">
+      <li><h4>记录已接收偏移量</h4><p>每写入一块，就把"已接收长度"写进参数区或 Flash 元数据里。</p></li>
+      <li><h4>中断后带着偏移量重连</h4><p>重新连上服务器时，把 offset 报上去，服务器从对应位置继续发，而不是从头开始。</p></li>
+      <li><h4>校验失败时局部重传</h4><p>对分块序号做校验，只重传出错的块，不必推倒重来。</p></li>
+    </ol>
+
+    <h4 style="margin-top:8px">写入与重启的顺序</h4>
+    <p>顺序错了，一次断电就可能变砖。正确的做法是：</p>
+    <div class="pill-row">
+      <span class="pill">① 固件完整写入 Slot B</span>
+      <span class="pill">② 整包 CRC + Hash 校验通过</span>
+      <span class="pill">③ 验签通过</span>
+      <span class="pill">④ 更新版本号与升级标志</span>
+      <span class="pill w">⑤ 最后一步：复位重启</span>
+    </div>
+    <div class="note tip">
+      <b>判断标准很简单：</b>在第 ⑤ 步之前的任何时刻断电，重启后设备都应该能正常运行<strong>旧固件</strong>。如果做不到，说明写入顺序或分区设计有问题。
+    </div>
+
+    <h3 id="s4-5"><span class="sec-no">4.5</span> 无线 OTA 的优缺点与适用场景</h3>
+    <div class="grid g2">
+      <div class="card accent">
+        <h4>优点</h4>
+        <ul style="margin:0">
+          <li>可远程批量升级，人工成本近乎为零</li>
+          <li>速率显著高于串口，适合大固件</li>
+          <li>能与云平台联动，做灰度发布与版本统计</li>
+          <li>用户侧体验好：App 一键升级、自动升级</li>
+        </ul>
+      </div>
+      <div class="card warm">
+        <h4>缺点</h4>
+        <ul style="margin:0">
+          <li>依赖网络与环境，弱网下成功率与体验下降</li>
+          <li>功耗上升，电池设备需特别设计充电策略</li>
+          <li>暴露在公网，需要 TLS、签名与鉴权等安全机制</li>
+          <li>实现链路长：云平台、协议、证书、版本管理都要投入</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid g3" style="margin-top:14px">
+      <div class="card"><h4>智能家居</h4><p>Wi-Fi 设备在用户家中，升级必须"无感"，失败要有兜底。</p></div>
+      <div class="card"><h4>户外 / 工业设备</h4><p>4G 或 Wi-Fi 远程升级，避免昂贵的现场作业。</p></div>
+      <div class="card"><h4>智能穿戴</h4><p>BLE 升级 + 设备端确认，兼顾低功耗与安全性。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 五、两种 OTA 方式对比 ============ -->
+  <section class="sec" id="s5">
+    <div class="sec-head"><span class="sec-num">Chapter 05</span></div>
+    <h2>串口 OTA 与无线 OTA 对比与选型</h2>
+    <p class="sec-sub">两者不是"先进与落后"的关系，而是"一次性通道"与"常态化通道"的分工。真正的产品往往两条都要。</p>
+
+    <h3 id="s5-1"><span class="sec-no">5.1</span> 全面对比</h3>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>对比维度</th><th>串口 OTA（UART）</th><th>无线 OTA（Wi-Fi / BLE / 4G）</th></tr></thead>
+        <tbody>
+          <tr><td>通信方式</td><td>物理线缆直连，PC 与设备点对点</td><td>无线射频，设备自主连接服务器</td></tr>
+          <tr><td>升级前提</td><td>需物理接触设备 + 上位机工具</td><td>设备已联网 + 服务器/OTA 平台就绪</td></tr>
+          <tr><td>硬件要求</td><td>原生 UART 或 USB 转串口芯片</td><td>Wi-Fi / BLE / 蜂窝射频硬件或模组</td></tr>
+          <tr><td>典型速率</td><td>约 11.5 ~ 200 KB/s（取决于波特率）</td><td>Wi-Fi 数十 ~ 数百 KB/s；BLE 约 5 ~ 20 KB/s</td></tr>
+          <tr><td>单次升级耗时</td><td>500KB 固件 @115200 约 45 秒</td><td>通常数十秒到数分钟，取决于网络质量</td></tr>
+          <tr><td>批量能力</td><td>弱，需人工逐台操作</td><td>强，可统一下发、分批灰度、统计成功率</td></tr>
+          <tr><td>安全边界</td><td>攻击面小（需物理接触），仍需校验防错刷</td><td>暴露于网络，必须加密传输 + 验签 + 鉴权</td></tr>
+          <tr><td>可用性依赖</td><td>依赖操作者、线材与端口</td><td>依赖网络、服务器稳定性、证书有效期</td></tr>
+          <tr><td>失败处理</td><td>简单：重连重传即可</td><td>复杂：需处理弱网、断点续传、灰度回退</td></tr>
+          <tr><td>典型阶段</td><td>产线烧录、研发调试、应急救援</td><td>量产之后的常态化升级通道</td></tr>
+          <tr><td>实施成本</td><td>低，一根线 + 一个工具</td><td>中高，服务器、证书、版本管理都要投入</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note tip">
+      <b>一句话总结：</b>串口 OTA 解决的是"这台设备现在需要被写进去"，无线 OTA 解决的是"这一万台设备需要被同时写进去"。前者优化的是单次成功率，后者优化的是规模化成本。
+    </div>
+
+    <h3 id="s5-2"><span class="sec-no">5.2</span> 速率与成本对比</h3>
+    <p>下图给出常见场景的速率量级（<strong>受网络与固件大小影响很大，仅作量级参考</strong>）：</p>
+    <div style="margin:10px 0 4px">
+      <div class="bench"><span class="bench-label">串口 115200</span><div class="bench-track"><div class="bench-fill" style="width:6%"></div></div><span class="bench-val">≈11.5 KB/s</span></div>
+      <div class="bench"><span class="bench-label">串口 921600</span><div class="bench-track"><div class="bench-fill" style="width:46%"></div></div><span class="bench-val">≈92 KB/s</span></div>
+      <div class="bench"><span class="bench-label">BLE 4.2</span><div class="bench-track"><div class="bench-fill w" style="width:8%"></div></div><span class="bench-val">≈10 KB/s</span></div>
+      <div class="bench"><span class="bench-label">Wi-Fi (2.4G)</span><div class="bench-track"><div class="bench-fill w" style="width:38%"></div></div><span class="bench-val">≈75 KB/s</span></div>
+      <div class="bench"><span class="bench-label">4G Cat.1 模组</span><div class="bench-track"><div class="bench-fill w" style="width:25%"></div></div><span class="bench-val">≈50 KB/s</span></div>
+    </div>
+    <p class="fig-cap" style="text-align:left;margin-top:6px">实际速率由射频环境、协议开销、Flash 写入速度共同决定；BLE 数值偏低，但它的优势不在速率，而在<strong>低功耗与手机直连</strong>。</p>
+
+    <h3 id="s5-3"><span class="sec-no">5.3</span> 不同设备应该如何选择</h3>
+    <p>选型本质上是在回答四个问题，按顺序问下去基本就能定下方案：</p>
+    <div class="grid g2">
+      <div class="card">
+        <h4>Q1 设备规模和位置？</h4>
+        <p>几十台、固定在产线或实验室 → <strong>串口</strong>；上千台、分散在城市或客户家中 → <strong>无线</strong>是唯一现实选择。</p>
+      </div>
+      <div class="card">
+        <h4>Q2 设备有什么联网能力？</h4>
+        <p>完全无网 → 只能串口，或加装通信模组；有 Wi-Fi → 首选 Wi-Fi OTA；只有 BLE（穿戴类）→ BLE OTA；只有蜂窝覆盖 → 4G 模组 OTA。</p>
+      </div>
+      <div class="card">
+        <h4>Q3 固件多大、能接受多长时间？</h4>
+        <p>固件上百 KB 且需要秒级完成 → Wi-Fi；BLE 传输大固件会很慢，必要时改用差分升级或 U 盘/串口兜底。</p>
+      </div>
+      <div class="card">
+        <h4>Q4 安全要求有多高？</h4>
+        <p>设备直接连公网 → 必须 TLS + 签名 + 安全启动 + 防降级；仅本地物理接触 → 至少做到型号校验与整包 CRC。</p>
+      </div>
+    </div>
+
+    <h4 style="margin-top:20px">工业界的常见组合</h4>
+    <div class="grid g3">
+      <div class="card accent">
+        <h4>产线：串口</h4>
+        <p>出厂时用串口批量烧录固件并写入设备身份信息，成本低、速度快、易追溯。</p>
+      </div>
+      <div class="card accent">
+        <h4>售后：无线</h4>
+        <p>量产交付后通过 Wi-Fi/4G 推送固件更新，支持灰度与批量成功率统计。</p>
+      </div>
+      <div class="card accent">
+        <h4>兜底：串口恢复模式</h4>
+        <p>无线升级失败或设备失联时，保留按键进入下载模式，用串口把设备救回来。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 六、关键技术与安全机制 ============ -->
+  <section class="sec" id="s6">
+    <div class="sec-head"><span class="sec-num">Chapter 06</span></div>
+    <h2>OTA 关键技术与安全机制</h2>
+    <p class="sec-sub">前面五章讲的是"怎么把固件送过去"，这一章讲"怎么保证送过去的固件是对的，以及送失败时怎么活下来"。</p>
+
+    <h3 id="s6-1"><span class="sec-no">6.1</span> 固件完整性校验：CRC、Checksum 与 Hash</h3>
+    <p><strong>完整性校验</strong>解决的是"固件在传输和存储过程中有没有被损坏"。常见的三种手段强度依次递增：</p>
+    <div class="grid g3">
+      <div class="card">
+        <h4>Checksum 校验和</h4>
+        <p>把所有字节加起来取反或取模。最简单，实现成本几乎为零，但检错能力很弱，几比特出错就可能看不出来。</p>
+      </div>
+      <div class="card">
+        <h4>CRC 循环冗余校验</h4>
+        <p>按位运算生成一个固定长度的"指纹"（常见 CRC-16 / CRC-32）。能可靠发现突发错误，是<strong>串口协议与 Flash 校验的事实标准</strong>。</p>
+      </div>
+      <div class="card">
+        <h4>Hash 摘要</h4>
+        <p>SHA-256 等算法生成固定长度摘要，任何一个比特改变都会让摘要完全不同。用于整包校验和签名输入。</p>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>方法</th><th>能发现什么</th><th>不能发现什么</th><th>典型用途</th></tr></thead>
+        <tbody>
+          <tr><td>Checksum</td><td>少量比特错误</td><td>复杂错误模式</td><td>简单协议的快速自检</td></tr>
+          <tr><td>CRC-16 / CRC-32</td><td>传输与存储中绝大多数错误</td><td>人为篡改</td><td>分块传输校验、Flash 读回校验</td></tr>
+          <tr><td>SHA-256</td><td>任何比特的变化</td><td>攻击者重算摘要后的替换</td><td>整包校验、签名输入</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <b>关键区别：</b>CRC 和 Hash 都是"公开算法"，攻击者拿到固件包后可以<strong>重新算一遍校验值</strong>，把篡改后的固件伪装成合法的。所以它们只能防"意外损坏"，<strong>防不了"恶意篡改"</strong>——后者要靠数字签名。
+    </div>
+
+    <h3 id="s6-2"><span class="sec-no">6.2</span> 固件身份验证与数字签名</h3>
+    <p><strong>数字签名</strong>解决的是"这个固件到底是谁发布的"。它基于非对称加密：厂商用只有自己持有的<strong>私钥</strong>对固件签名，设备里预置对应的<strong>公钥</strong>，设备用公钥验证签名是否成立。</p>
+    <figure class="fig">
+      <svg viewBox="0 0 960 220" role="img" aria-label="数字签名与验签流程">
+        <rect class="box-a" x="40" y="46" width="200" height="84" rx="12"/>
+        <text class="t1" x="140" y="76" text-anchor="middle">① 服务器签名</text>
+        <text class="t2" x="140" y="98" text-anchor="middle">私钥对固件摘要签名</text>
+        <text class="t3" x="140" y="118" text-anchor="middle">私钥永不离开厂商</text>
+
+        <rect class="box" x="290" y="46" width="200" height="84" rx="12"/>
+        <text class="t1" x="390" y="76" text-anchor="middle">② 随包下发</text>
+        <text class="t2" x="390" y="98" text-anchor="middle">固件 + 签名一起发布</text>
+        <text class="t3" x="390" y="118" text-anchor="middle">版本与型号写入头部</text>
+
+        <rect class="box-w" x="540" y="46" width="200" height="84" rx="12"/>
+        <text class="t1" x="640" y="76" text-anchor="middle">③ 设备验签</text>
+        <text class="t2" x="640" y="98" text-anchor="middle">用内置公钥验签</text>
+        <text class="t3" x="640" y="118" text-anchor="middle">公钥出厂烧入只读区</text>
+
+        <rect class="box-a" x="790" y="46" width="130" height="84" rx="12"/>
+        <text class="t1" x="855" y="76" text-anchor="middle">④ 允许写入</text>
+        <text class="t2" x="855" y="98" text-anchor="middle">通过才写 Flash</text>
+        <text class="t3" x="855" y="118" text-anchor="middle">否则拒绝升级</text>
+
+        <path class="ln" d="M240 88 H286" marker-end="url(#ar)"/>
+        <path class="ln" d="M490 88 H536" marker-end="url(#ar)"/>
+        <path class="ln" d="M740 88 H786" marker-end="url(#ar)"/>
+
+        <path class="ln-w dash" d="M640 130 V164" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="640" y="182" text-anchor="middle">验签失败 → 立即丢弃，不允许写入 Flash</text>
+        <text class="t3" x="480" y="206" text-anchor="middle">设备具备"验证"能力，但没有"伪造"能力 —— 这是公钥体系的核心价值</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 7 · 数字签名验签流程</b>：常见算法组合为 SHA-256 + RSA-2048 或 ECC（P-256）。算法只是实现细节，"厂商私钥签名、设备公钥验签"的思想才是关键。</figcaption>
+    </figure>
+
+    <div class="grid g2" style="margin-top:4px">
+      <div class="card">
+        <h4>安全启动（Secure Boot）</h4>
+        <p>把验签提前到<strong>启动链最前端</strong>：Bootloader 一上电就先验 APP 的签名，不通过就拒绝启动。这样即使攻击者写入了固件，设备也跑不起来。安全启动与 OTA 是同一套密码学基础的两种用法。</p>
+      </div>
+      <div class="card">
+        <h4>设备身份与双向认证</h4>
+        <p>设备出厂时烧入唯一证书（设备私钥放安全芯片或受保护区域），与服务器建立 TLS 双向认证。<strong>设备认证</strong>解决"谁在下载"，<strong>固件验签</strong>解决"下载的是什么可信"，两者都要有。</p>
+      </div>
+    </div>
+
+    <h3 id="s6-3"><span class="sec-no">6.3</span> Flash 分区与双分区升级</h3>
+    <p><strong>双分区（A/B Slot）</strong>是让 OTA 变得可靠的关键结构：Flash 里准备两份固件空间，新固件永远写进<strong>当前没在运行的那一份</strong>，校验通过后再切换启动目标。旧固件原地保留，随时可以退回去。</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 960 430" role="img" aria-label="双分区升级示意图">
+        <rect class="box" x="40" y="58" width="330" height="300" rx="14"/>
+        <text class="t1" x="60" y="86">Flash 存储</text>
+        <text class="t3" x="60" y="104">同一时刻只有一个 Slot 处于激活状态</text>
+
+        <rect class="box-a" x="70" y="118" width="270" height="95" rx="10"/>
+        <text class="t1" x="205" y="148" text-anchor="middle">Slot A</text>
+        <text class="t2" x="205" y="170" text-anchor="middle">固件 v1.2 · 当前运行中</text>
+        <text class="t3" x="205" y="192" text-anchor="middle">保留为回滚目标</text>
+
+        <rect class="box-w" x="70" y="232" width="270" height="95" rx="10"/>
+        <text class="t1" x="205" y="262" text-anchor="middle">Slot B</text>
+        <text class="t2" x="205" y="284" text-anchor="middle">固件 v1.3 · 新固件已落盘</text>
+        <text class="t3" x="205" y="306" text-anchor="middle">下次启动将切换到这里</text>
+
+        <text class="t3" x="205" y="346" text-anchor="middle">A、B 互为备份，谁坏都不怕</text>
+
+        <rect class="box-a" x="560" y="70" width="360" height="120" rx="12"/>
+        <text class="t1" x="740" y="100" text-anchor="middle">Bootloader 启动选择</text>
+        <text class="t2" x="740" y="124" text-anchor="middle">读取 boot_flag → 找到目标 Slot → 校验固件</text>
+        <text class="t3" x="740" y="150" text-anchor="middle">通过则启动新固件，失败则回退另一个 Slot</text>
+
+        <path class="ln-a" d="M556 124 C 480 124 470 168 344 168" marker-end="url(#ar-a)"/>
+        <path class="ln-w" d="M556 160 C 480 160 470 280 344 280" marker-end="url(#ar-w)"/>
+
+        <text class="t3" x="392" y="100" style="fill:#2f6f5e">校验失败 / 回滚 → 启动 Slot A</text>
+        <text class="t3" x="392" y="228" style="fill:#c97b3f">校验通过 → 启动 Slot B</text>
+
+        <rect class="box-s" x="140" y="374" width="180" height="38" rx="9"/>
+        <text class="tm" x="230" y="398" text-anchor="middle">boot_flag → Slot B</text>
+        <path class="ln dash" d="M230 374 V360" marker-end="url(#ar)"/>
+      </svg>
+      <figcaption class="fig-cap"><b>图 8 · 双分区升级示意图</b>：升级过程始终保持"至少有一个完整可启动固件"，因此断电、校验失败、新固件崩溃都不会让设备变砖。</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>对比项</th><th>单分区方案</th><th>双分区（A/B）方案</th></tr></thead>
+        <tbody>
+          <tr><td>Flash 占用</td><td>约 1 份固件</td><td>约 2 份固件</td></tr>
+          <tr><td>升级中断的影响</td><td>可能损坏 APP 区，设备变砖</td><td>旧固件完好，可正常启动</td></tr>
+          <tr><td>新固件启动失败</td><td>只能人工重刷</td><td>自动回滚到旧分区</td></tr>
+          <tr><td>回滚能力</td><td>需额外保存旧版本文件</td><td>天然具备</td></tr>
+          <tr><td>实现复杂度</td><td>低</td><td>较高，需要管理启动标志与分区状态</td></tr>
+          <tr><td>适用</td><td>Flash 紧张、功能简单的设备</td><td>要求"绝不能变砖"的产品</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s6-4"><span class="sec-no">6.4</span> 升级失败处理</h3>
+    <p>把升级过程拆开逐个环节排查，会发现失败总是发生在固定的几个位置：</p>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>失败环节</th><th>典型原因</th><th>设备表现</th><th>应对措施</th></tr></thead>
+        <tbody>
+          <tr><td>下载阶段</td><td>网络中断、服务器超时</td><td>下载卡住或反复重试</td><td>分块下载 + 断点续传 + 超时退出</td></tr>
+          <tr><td>写入阶段</td><td>写入途中掉电</td><td>Flash 内容半新半旧</td><td>固件先写、标志最后写；写备用分区</td></tr>
+          <tr><td>校验阶段</td><td>数据传输损坏、固件被截断</td><td>校验失败</td><td>分块校验 + 整包校验，失败即丢弃</td></tr>
+          <tr><td>启动阶段</td><td>新固件有 Bug 或配置错误</td><td>反复重启、进不了 APP</td><td>看门狗复位 + 启动失败计数 + 自动回滚</td></tr>
+          <tr><td>版本阶段</td><td>固件与硬件型号不匹配</td><td>启动即异常、功能异常</td><td>头部型号字段校验 + 灰度发布验证</td></tr>
+          <tr><td>安全阶段</td><td>固件未签名或签名不合法</td><td>拒绝写入或拒绝启动</td><td>公钥验签 + 安全启动</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s6-5"><span class="sec-no">6.5</span> 断电保护与异常恢复</h3>
+    <p>断电是嵌入式设备最常见也最猝不及防的故障源——你永远无法阻止用户在刷写过程中拔电。设计上要做的是：<strong>让断电发生在任何时刻，设备都还能启动</strong>。</p>
+    <div class="grid g3">
+      <div class="card accent">
+        <h4>铁律一：先写数据，最后写标志</h4>
+        <p>升级标志是"提交点"。在写它之前断电，重启后旧固件照常运行；写完它才意味着新固件已就绪。</p>
+      </div>
+      <div class="card accent">
+        <h4>铁律二：标志写入要原子</h4>
+        <p>标志字段要按对齐的单字写入，写完<strong>回读校验</strong>；更稳妥的做法是写两份带版本号的备份，读出时取有效的那份。</p>
+      </div>
+      <div class="card accent">
+        <h4>铁律三：始终留一条退路</h4>
+        <p>永远保留一份可启动的固件（A/B 分区），或至少保留可用的串口恢复通道。</p>
+      </div>
+    </div>
+    <h4 style="margin-top:20px">异常恢复的三层保障</h4>
+    <ol class="steps">
+      <li><h4>看门狗（Watchdog）</h4><p>独立于主程序的定时器，主程序没按时喂狗就复位。升级流程中必须持续喂狗，否则会被误判为"死机"而重启，升级反复失败。</p></li>
+      <li><h4>启动失败自动复位</h4><p>新固件启动后若在规定时间内没有完成自检与标记，看门狗复位，Bootloader 借此发现"上次启动失败"并触发回滚。</p></li>
+      <li><h4>Recovery 恢复模式</h4><p>按键触发或多次启动失败后自动进入：允许串口下载、允许重新拉取 OTA 包、显示明确错误码。这是一台设备"最后的希望"。</p></li>
+    </ol>
+
+    <h3 id="s6-6"><span class="sec-no">6.6</span> 固件回滚（Rollback）</h3>
+    <p><strong>回滚</strong>指设备升级到新版本后出问题，自动或手动退回到上一版本。没有回滚的 OTA 是不完整的——一次错误推送可能让上万台设备同时失去功能。</p>
+    <figure class="fig scroll">
+      <svg viewBox="0 0 700 640" role="img" aria-label="OTA 升级失败与回滚流程图">
+        <rect class="box-a" x="75" y="8" width="230" height="44" rx="10"/>
+        <text class="t1" x="190" y="35" text-anchor="middle">① 上电 / 复位</text>
+        <path class="ln" d="M190 52 V66" marker-end="url(#ar)"/>
+
+        <rect class="box" x="75" y="70" width="230" height="46" rx="10"/>
+        <text class="t1" x="190" y="92" text-anchor="middle">② 读取启动标志</text>
+        <text class="t3" x="190" y="108" text-anchor="middle">并校验目标分区固件</text>
+        <path class="ln" d="M190 116 V132" marker-end="url(#ar)"/>
+
+        <polygon class="box-w" points="190,136 300,176 190,216 80,176"/>
+        <text class="t2" x="190" y="181" text-anchor="middle">③ 目标分区固件有效？</text>
+        <path class="ln-w" d="M300 176 H376" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="338" y="164" text-anchor="middle">否</text>
+        <rect class="box-s" x="380" y="154" width="280" height="44" rx="10"/>
+        <text class="t2" x="520" y="181" text-anchor="middle">尝试备用分区（Slot A ⇄ Slot B）</text>
+        <path class="ln-w dash" d="M380 198 C 350 198 350 93 307 93" marker-end="url(#ar-w)"/>
+
+        <path class="ln-a" d="M190 216 V236" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="200" y="232">是</text>
+
+        <rect class="box-a" x="75" y="240" width="230" height="44" rx="10"/>
+        <text class="t1" x="190" y="260" text-anchor="middle">④ 启动目标固件</text>
+        <text class="t3" x="190" y="276" text-anchor="middle">APP 运行并做启动自检</text>
+        <path class="ln" d="M190 284 V296" marker-end="url(#ar)"/>
+
+        <polygon class="box-w" points="190,300 300,340 190,380 80,340"/>
+        <text class="t2" x="190" y="338" text-anchor="middle">⑤ 自检成功并标记 valid？</text>
+        <path class="ln-a" d="M300 340 H376" marker-end="url(#ar-a)"/>
+        <text class="t3 ac" x="338" y="328" text-anchor="middle">是</text>
+        <rect class="box-a" x="380" y="318" width="280" height="44" rx="10"/>
+        <text class="t2" x="520" y="345" text-anchor="middle">升级成功：更新版本号、清理备份区</text>
+
+        <path class="ln-w" d="M190 380 V398" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="200" y="394">否</text>
+
+        <rect class="box-w" x="75" y="402" width="230" height="44" rx="10"/>
+        <text class="t1" x="190" y="422" text-anchor="middle">⑥ 失败计数 + 1</text>
+        <text class="t3" x="190" y="438" text-anchor="middle">准备再次尝试启动</text>
+        <path class="ln" d="M190 446 V458" marker-end="url(#ar)"/>
+
+        <polygon class="box-w" points="190,462 300,502 190,542 80,502"/>
+        <text class="t2" x="190" y="500" text-anchor="middle">⑦ 重试次数超过阈值？</text>
+        <path class="ln-w" d="M300 502 H376" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="338" y="490" text-anchor="middle">否</text>
+        <rect class="box-s" x="380" y="480" width="280" height="44" rx="10"/>
+        <text class="t2" x="520" y="507" text-anchor="middle">再次尝试启动目标分区</text>
+        <path class="ln-w dash" d="M380 524 C 348 524 348 262 307 262" marker-end="url(#ar-w)"/>
+
+        <path class="ln-w" d="M190 542 V558" marker-end="url(#ar-w)"/>
+        <text class="t3 wa" x="200" y="554">是</text>
+
+        <rect class="box-w" x="75" y="562" width="230" height="46" rx="10"/>
+        <text class="t1" x="190" y="582" text-anchor="middle">⑧ 回滚到旧分区</text>
+        <text class="t3" x="190" y="598" text-anchor="middle">或进入 Recovery 恢复模式</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 9 · 升级失败与回滚流程图</b>：核心是"重试计数"——只有当连续多次启动失败，才认定新固件有问题并回滚，从而避免偶发的启动抖动被误判为坏固件。</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>回滚方式</th><th>触发者</th><th>特点</th></tr></thead>
+        <tbody>
+          <tr><td>Bootloader 自动回滚</td><td>设备自身（启动失败计数超阈值）</td><td>最可靠，不依赖网络；需要 A/B 分区支持</td></tr>
+          <tr><td>云端回滚</td><td>服务器下发旧版本</td><td>用于"新版本本身有严重 Bug"的场景；依赖网络</td></tr>
+          <tr><td>应用层回滚</td><td>APP 自己检测到异常</td><td>如新版本功能异常时主动降级，需要业务逻辑配合</td></tr>
+          <tr><td>防降级计数</td><td>单调递增的版本计数器</td><td>阻止攻击者反复刷入有漏洞的旧版本</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="s6-7"><span class="sec-no">6.7</span> 防止非法固件和错误固件写入</h3>
+    <p>把前面各节的要点浓缩成一条<strong>五道防线</strong>，一道都不能少：</p>
+    <ol class="steps">
+      <li><h4>第一道：型号与版本匹配</h4><p>固件头部携带 magic 值、硬件型号、固件大小、目标版本。设备先比对，不匹配直接丢弃——避免把 A 型号的固件刷进 B 型号。</p></li>
+      <li><h4>第二道：版本合法性检查</h4><p>拒绝比当前版本更低的固件（防止降级攻击），并配合服务器灰度名单控制谁能收到哪个版本。</p></li>
+      <li><h4>第三道：完整性校验</h4><p>分块 CRC 保证传输不坏，整包 CRC / SHA-256 保证落盘不坏。</p></li>
+      <li><h4>第四道：数字签名验签</h4><p>用设备内置公钥验证厂商签名，不通过绝不允许写入 Flash；配合安全启动，连"已经被写坏"也不允许启动。</p></li>
+      <li><h4>第五道：通道安全与身份认证</h4><p>下载走 TLS 加密，设备用出厂证书完成双向认证，避免被劫持到假服务器。</p></li>
+    </ol>
+    <div class="note tip">
+      <b>请把这五道防线记成一句话：</b>"确认身份 → 确认版本 → 确认完整 → 确认可信 → 确认来源"。顺序不能乱，因为后三道防线的计算量最大，放在最后可以在早期就丢弃明显不合法的包，省电省流量。
+    </div>
+  </section>
+
+  <!-- ============ 七、实际应用与学习路线 ============ -->
+  <section class="sec" id="s7">
+    <div class="sec-head"><span class="sec-num">Chapter 07</span></div>
+    <h2>实际应用与学习路线</h2>
+    <p class="sec-sub">最后两节回答两个问题：这些技术真实世界里长什么样，以及作为初学者，应该按什么顺序动手。</p>
+
+    <h3 id="s7-1"><span class="sec-no">7.1</span> OTA 在真实产品中的应用</h3>
+    <div class="grid g3">
+      <div class="card">
+        <h4>智能家居</h4>
+        <p>插座、面板、摄像头、网关。Wi-Fi 为主，强调"用户无感"：升级失败必须自动回退，设备要能继续被 App 控制。</p>
+      </div>
+      <div class="card">
+        <h4>物联网设备</h4>
+        <p>电表、水表、井盖传感器、共享充电柜。多为 4G / NB-IoT 或低功耗无线，设备在野外，<strong>断电保护是生死线</strong>。</p>
+      </div>
+      <div class="card">
+        <h4>智能穿戴</h4>
+        <p>手环、耳机、智能手表。BLE 升级 + 手机端确认，兼顾低功耗与用户知情，通常配合"恢复出厂"动作触发。</p>
+      </div>
+      <div class="card">
+        <h4>工业与车载</h4>
+        <p>要求更高：ISO 26262、AEC-Q100 等标准对固件可追溯性、启动时间、回滚能力有明确要求，FOTA 是必备功能。</p>
+      </div>
+      <div class="card">
+        <h4>医疗与安防</h4>
+        <p>常采用双分区 + 强制签名校验 + 灰度发布，并保留完整升级审计日志，以满足合规追溯要求。</p>
+      </div>
+      <div class="card">
+        <h4>消费电子外设</h4>
+        <p>键盘、鼠标、打印机等 USB 设备，常用"设备端固件 + 主机端工具"的组合，本质上就是串口 OTA 的变体。</p>
+      </div>
+    </div>
+
+    <h3 id="s7-2"><span class="sec-no">7.2</span> 初学者需要掌握的前置知识</h3>
+    <p>不需要一次学完所有东西。按下面的三层逐步搭建，每一层都为下一层打底：</p>
+    <div class="grid g3">
+      <div class="card accent">
+        <span class="tag">LEVEL 1</span>
+        <h4>必备基础</h4>
+        <ul style="margin:0;padding-left:18px;font-size:14px">
+          <li>C 语言与函数指针、位运算</li>
+          <li>MCU 基本结构：主频、定时器、中断、UART</li>
+          <li>Flash 与 RAM 的区别、扇区擦除概念</li>
+          <li>看门狗的基本用法</li>
+          <li>会看原理图与数据手册</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <span class="tag">LEVEL 2</span>
+        <h4>开始做 OTA 前</h4>
+        <ul style="margin:0;padding-left:18px;font-size:14px">
+          <li>链接脚本与内存布局（代码段/数据段地址）</li>
+          <li>Bootloader 的概念与跳转流程</li>
+          <li>常用校验算法（CRC / SHA-256）</li>
+          <li>串口通信与常见协议（UART、Xmodem）</li>
+          <li>调试手段：串口日志、烧录器、逻辑分析仪</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <span class="tag">LEVEL 3</span>
+        <h4>做量产级 OTA 时</h4>
+        <ul style="margin:0;padding-left:18px;font-size:14px">
+          <li>嵌入式网络栈（TCP/IP、HTTP、TLS）</li>
+          <li>MQTT 等物联网协议与云平台对接</li>
+          <li>非对称加密、证书链、TLS 握手</li>
+          <li>版本管理与灰度发布机制</li>
+          <li>OTA 的异常注入测试（断电、断网、乱序）</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 id="s7-3"><span class="sec-no">7.3</span> 从串口到无线：推荐的学习顺序</h3>
+    <ul class="timeline">
+      <li>
+        <span class="when">STEP 1</span>
+        <h4>先读懂自己手上的板子</h4>
+        <p>找到 Flash 的型号与容量、Bootloader 的入口地址、串口号与波特率。这一步不需要写代码，但决定了后面所有设计。</p>
+      </li>
+      <li>
+        <span class="when">STEP 2</span>
+        <h4>用现成工具完成一次串口烧录</h4>
+        <p>先用厂商提供的烧录工具把固件写进 Flash，跑通"编译 → 烧录 → 运行"，确认工具链、驱动、串口都正常。</p>
+      </li>
+      <li>
+        <span class="when">STEP 3</span>
+        <h4>改造 Bootloader，加入升级协议</h4>
+        <p>在 Bootloader 里加一条最简单的命令：收到字符 <code>U</code> 就进入接收模式，用 Xmodem 把新固件写进 APP 区。成功后你应该能亲眼看到"不用烧录器也能升级"。</p>
+      </li>
+      <li>
+        <span class="when">STEP 4</span>
+        <h4>补齐校验、标志与失败处理</h4>
+        <p>加入整包 CRC 校验、升级标志、失败回滚。这是把"能升级"变成"可靠升级"的关键一步，也是面试与实际工作最常被问到的部分。</p>
+      </li>
+      <li>
+        <span class="when">STEP 5</span>
+        <h4>引入 A/B 双分区</h4>
+        <p>把 Flash 划成两个 Slot，实现"升级失败自动回到旧版本"。做完这一步，你对 OTA 的理解就超过了大多数人。</p>
+      </li>
+      <li>
+        <span class="when">STEP 6</span>
+        <h4>最后接入无线与云端</h4>
+        <p>在已经可靠的升级内核之上，把"串口传数据"换成"Wi-Fi 下载数据"，补上 TLS 与签名验签，再做断点续传与灰度。</p>
+      </li>
+    </ul>
+    <div class="note tip">
+      <b>为什么无线要放在最后？</b>因为无线带来的复杂度主要在<strong>网络与安全</strong>，而 OTA 的可靠性内核（分区、校验、标志、回滚）与通道无关。先把内核做扎实，再换通道，事半功倍；反过来则容易做出"能升但一断电就砖"的半成品。
+    </div>
+
+    <h3 id="s7-4"><span class="sec-no">7.4</span> 初学者可以尝试的入门实验</h3>
+    <div class="grid g2">
+      <div class="card">
+        <span class="tag">EXPERIMENT 01</span>
+        <h4>让串口"说 hello"</h4>
+        <p>写一段最小代码：上电后通过 UART 打印版本号和剩余 Flash 容量。这是后续所有升级日志、调试信息的基础。</p>
+      </div>
+      <div class="card">
+        <span class="tag">EXPERIMENT 02</span>
+        <h4>手写一次 Flash 擦写</h4>
+        <p>擦除一个扇区、写入一段已知数据、再读出来逐字节比对。亲手体会"擦除后才能写入"这条规则。</p>
+      </div>
+      <div class="card">
+        <span class="tag">EXPERIMENT 03</span>
+        <h4>实现 CRC32 并验证</h4>
+        <p>实现一个 CRC32 函数，故意改动固件里的一个字节，确认校验值发生变化、升级流程能拦截它。</p>
+      </div>
+      <div class="card">
+        <span class="tag">EXPERIMENT 04</span>
+        <h4>在写入中途强制断电</h4>
+        <p>用可编程电源在写 Flash 过程中切断供电，然后上电观察设备是否仍能启动。这是验证"断电保护"设计是否真的有效的唯一方法。</p>
+      </div>
+      <div class="card">
+        <span class="tag">EXPERIMENT 05</span>
+        <h4>把"新固件"故意写坏</h4>
+        <p>让新固件启动后立刻死循环，观察看门狗复位、失败计数增加、自动回滚到旧版本的全过程。</p>
+      </div>
+      <div class="card">
+        <span class="tag">EXPERIMENT 06</span>
+        <h4>接入一次真实的 OTA</h4>
+        <p>用一块带 Wi-Fi 的开发板（如 ESP32）走完"查询版本 → 下载 → 校验 → 写入 → 重启"的全流程，把串口版本的经验迁移过来。</p>
+      </div>
+    </div>
+
+    <h3 id="mindmap"><span class="sec-no">7.5</span> 配套思维导图</h3>
+    <p>把全书压缩成一张图，六个主干、十八个要点。打印出来贴在显示器旁边，是最快的复习方式。</p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 1400 660" role="img" aria-label="嵌入式 OTA 升级技术思维导图">
+        <!-- center -->
+        <rect x="600" y="298" width="200" height="64" rx="18" fill="#2f6f5e"/>
+        <text x="700" y="322" text-anchor="middle" style="font-family:var(--sans);font-size:17px;font-weight:600;fill:#ffffff">嵌入式 OTA</text>
+        <text x="700" y="346" text-anchor="middle" style="font-family:var(--sans);font-size:12.5px;fill:rgba(255,255,255,.85)">升级技术体系</text>
+
+        <!-- connectors -->
+        <path class="ln-a" d="M600 330 C 500 330 480 110 367 110" marker-end="url(#ar-a)"/>
+        <path class="ln-a" d="M600 330 C 520 330 500 330 367 330" marker-end="url(#ar-a)"/>
+        <path class="ln-a" d="M600 330 C 500 330 480 550 367 550" marker-end="url(#ar-a)"/>
+        <path class="ln-w" d="M800 330 C 900 330 920 110 1033 110" marker-end="url(#ar-w)"/>
+        <path class="ln-w" d="M800 330 C 880 330 900 330 1033 330" marker-end="url(#ar-w)"/>
+        <path class="ln-w" d="M800 330 C 900 330 920 550 1033 550" marker-end="url(#ar-w)"/>
+
+        <!-- left branches -->
+        <rect class="box-a" x="185" y="87" width="180" height="46" rx="12"/>
+        <text class="t1" x="275" y="116" text-anchor="middle">基础认知</text>
+        <rect class="box-a" x="185" y="307" width="180" height="46" rx="12"/>
+        <text class="t1" x="275" y="336" text-anchor="middle">核心基础</text>
+        <rect class="box-a" x="185" y="527" width="180" height="46" rx="12"/>
+        <text class="t1" x="275" y="556" text-anchor="middle">学习路线</text>
+
+        <path class="ln" d="M185 110 H178 M178 90 V134"/>
+        <path class="ln" d="M185 330 H178 M178 310 V354"/>
+        <path class="ln" d="M185 550 H178 M178 530 V574"/>
+
+        <text class="t2" x="170" y="90" text-anchor="end" style="fill:#7c7a72;font-size:13px">OTA 是什么</text>
+        <text class="t2" x="170" y="112" text-anchor="end" style="fill:#7c7a72;font-size:13px">为何需要 OTA</text>
+        <text class="t2" x="170" y="134" text-anchor="end" style="fill:#7c7a72;font-size:13px">基本工作流程</text>
+
+        <text class="t2" x="170" y="310" text-anchor="end" style="fill:#7c7a72;font-size:13px">Bootloader 角色</text>
+        <text class="t2" x="170" y="332" text-anchor="end" style="fill:#7c7a72;font-size:13px">Flash 分区布局</text>
+        <text class="t2" x="170" y="354" text-anchor="end" style="fill:#7c7a72;font-size:13px">固件包结构</text>
+
+        <text class="t2" x="170" y="530" text-anchor="end" style="fill:#7c7a72;font-size:13px">前置知识</text>
+        <text class="t2" x="170" y="552" text-anchor="end" style="fill:#7c7a72;font-size:13px">学习顺序</text>
+        <text class="t2" x="170" y="574" text-anchor="end" style="fill:#7c7a72;font-size:13px">入门实验</text>
+
+        <!-- right branches -->
+        <rect class="box-w" x="1035" y="87" width="180" height="46" rx="12"/>
+        <text class="t1" x="1125" y="116" text-anchor="middle">串口 OTA</text>
+        <rect class="box-w" x="1035" y="307" width="180" height="46" rx="12"/>
+        <text class="t1" x="1125" y="336" text-anchor="middle">无线 OTA</text>
+        <rect class="box-w" x="1035" y="527" width="180" height="46" rx="12"/>
+        <text class="t1" x="1125" y="556" text-anchor="middle">安全与可靠性</text>
+
+        <path class="ln" d="M1215 110 H1222 M1222 90 V134"/>
+        <path class="ln" d="M1215 330 H1222 M1222 310 V354"/>
+        <path class="ln" d="M1215 550 H1222 M1222 530 V574"/>
+
+        <text class="t2" x="1235" y="90">UART 链路</text>
+        <text class="t2" x="1235" y="112">Xmodem 协议</text>
+        <text class="t2" x="1235" y="134">适用场景</text>
+
+        <text class="t2" x="1235" y="310">Wi-Fi / BLE</text>
+        <text class="t2" x="1235" y="332">4G 模组</text>
+        <text class="t2" x="1235" y="354">适用场景</text>
+
+        <text class="t2" x="1235" y="530">校验与签名</text>
+        <text class="t2" x="1235" y="552">A/B 双分区</text>
+        <text class="t2" x="1235" y="574">回滚与保护</text>
+      </svg>
+      <figcaption class="fig-cap"><b>图 10 · 嵌入式 OTA 升级技术思维导图</b>：绿色为主干脉络（认知与基础），橙色为落地形态与保障手段。六个主干正好对应本手册的六个核心章节。</figcaption>
+    </figure>
+  </section>
+
+  <div class="end">
+    <h4>写在最后</h4>
+    <p>OTA 看似是"把文件传到设备"这么简单的事，但一个真正可用的 OTA 系统，牵涉的是<strong>存储布局、启动流程、密码学、异常处理和运维体系</strong>五个方面。掌握本章的六个主干，你就已经具备了独立设计一个可靠 OTA 方案的能力框架，剩下的就是把每块做扎实。</p>
+    <p>给初学者的最后一条建议：<strong>先让设备"能升级"，再让它"不会变砖"，最后才让它"能被远程管理"</strong>。顺序反了，工程上会付出很大代价。</p>
+    <div class="foot-meta">
+      <span>文档类型：技术学习手册</span>
+      <span>目标读者：嵌入式初学者</span>
+      <span>覆盖方案：UART / Wi-Fi / BLE / 4G</span>
+      <span>配套图表：10 张</span>
+    </div>
+  </div>
+
+  </main>
+</div>
+
+<script>
+/* 目录收起 / 展开：状态记忆在本地，刷新后保持 */
+(function () {
+  var layout = document.querySelector('.layout');
+  var btn = document.getElementById('sideToggle');
+  if (!layout || !btn) { return; }
+  var collapsed = false;
+  try { collapsed = window.localStorage.getItem('ota-toc-collapsed') === '1'; } catch (e) { collapsed = false; }
+
+  function apply() {
+    layout.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    btn.setAttribute('aria-label', collapsed ? '展开目录' : '收起目录');
+    btn.setAttribute('title', collapsed ? '展开目录' : '收起目录');
+  }
+  apply();
+
+  btn.addEventListener('click', function () {
+    collapsed = !collapsed;
+    apply();
+    try { window.localStorage.setItem('ota-toc-collapsed', collapsed ? '1' : '0'); } catch (e) { /* 忽略隐私模式下的写入失败 */ }
+  });
+})();
+
+/* 目录联动：随滚动高亮当前小节，并让侧边栏保持当前条目可见 */
+(function () {
+  var toc = document.getElementById('toc');
+  var nav = document.getElementById('nav');
+  var sidebar = document.querySelector('.sidebar');
+  var links = [];
+  var targets = [];
+
+  function collect(root) {
+    if (!root) { return; }
+    Array.prototype.forEach.call(root.querySelectorAll('a[href^="#"]'), function (a) {
+      var id = a.getAttribute('href').slice(1);
+      var el = id ? document.getElementById(id) : null;
+      if (!el) { return; }
+      links.push(a);
+      targets.push({ id: id, el: el });
+    });
+  }
+  collect(toc);
+  collect(nav);
+  if (!links.length) { return; }
+
+  var byId = {};
+  links.forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    (byId[id] = byId[id] || []).push(a);
+  });
+
+  function update() {
+    var line = window.scrollY + 150;
+    /* 取“阅读线”上最靠近的那个标题：既可能是章节(section)，也可能是小节(h3) */
+    var cur = null, bestTop = -Infinity;
+    for (var i = 0; i < targets.length; i++) {
+      var top = targets[i].el.getBoundingClientRect().top + window.scrollY;
+      if (top <= line && top > bestTop) { bestTop = top; cur = targets[i]; }
+    }
+    links.forEach(function (a) { a.classList.remove('active'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.toc-ch'), function (g) { g.classList.remove('active'); });
+    if (!cur) { return; }
+
+    /* 1) 精确命中当前小节 */
+    var group = null;
+    (byId[cur.id] || []).forEach(function (a) {
+      a.classList.add('active');
+      var g = a.closest ? a.closest('.toc-ch') : null;
+      if (g) { group = g; }
+    });
+
+    /* 2) 同时点亮所属章节（顶部导航与目录主干） */
+    var sec = cur.el.closest ? cur.el.closest('section[id]') : null;
+    if (sec) {
+      (byId[sec.id] || []).forEach(function (a) { a.classList.add('active'); });
+      if (!group) {
+        (byId[sec.id] || []).forEach(function (a) {
+          var g = a.closest ? a.closest('.toc-ch') : null;
+          if (g) { group = g; }
+        });
+      }
+    }
+    if (group) { group.classList.add('active'); }
+
+    /* 3) 让侧边栏保持当前条目可见 */
+    if (sidebar) {
+      var anchor = group ? group.querySelector('.toc-top') : null;
+      var sub = (byId[cur.id] || [])[0];
+      if (sub && sub.classList && sub.classList.contains('active') && sub.closest && sub.closest('.toc-sub') && sub.offsetParent !== null) {
+        anchor = sub;
+      }
+      if (anchor) {
+        var s = sidebar.getBoundingClientRect();
+        var l = anchor.getBoundingClientRect();
+        if (l.top < s.top + 12) { sidebar.scrollTop -= (s.top + 12 - l.top); }
+        else if (l.bottom > s.bottom - 16) { sidebar.scrollTop += (l.bottom - s.bottom + 16); }
+      }
+    }
+  }
+
+  var ticking = false;
+  window.addEventListener('scroll', function () {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(function () { update(); ticking = false; });
+    }
+  }, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+})();
+</script>
+</body>
+</html>
